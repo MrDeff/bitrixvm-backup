@@ -2,7 +2,7 @@
 set -euo pipefail
 
 log_ts() {
-  date -Iseconds
+  date -u '+%Y-%m-%dT%H:%M:%SZ'
 }
 
 log_info() {

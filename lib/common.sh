@@ -10,7 +10,9 @@ bb_abspath() {
     dir="$(dirname "$path")"
     local base
     base="$(basename "$path")"
-    printf '%s/%s\n' "$(cd "$dir" && pwd)" "$base"
+    local abs_dir
+    abs_dir="$(cd "$dir" && pwd)" || return 1
+    printf '%s/%s\n' "$abs_dir" "$base"
   fi
 }
 
