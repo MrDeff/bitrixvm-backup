@@ -7,14 +7,113 @@ source "$ROOT_DIR/lib/logging.sh"
 
 usage() {
   cat <<'USAGE'
-Usage: bitrix-backup-discover [--help]
+Usage: bitrix-backup-discover --output <path> --repo-prefix <prefix> [--root <path>]
+
+Options:
+  --root <path>          Bitrix home root to scan (default: /home/bitrix)
+  --output <path>        YAML output path
+  --repo-prefix <prefix> Repository prefix, for example sftp:backup@example:/backups
+  -h, --help             Show this help
 USAGE
 }
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  usage
-  exit 0
+root="/home/bitrix"
+output=""
+repo_prefix=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --root)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      root="$2"
+      shift 2
+      ;;
+    --output)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      output="$2"
+      shift 2
+      ;;
+    --repo-prefix)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      repo_prefix="${2%/}"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "$output" || -z "$repo_prefix" ]]; then
+  usage >&2
+  exit 2
 fi
 
-usage
-exit 2
+site_has_db_config() {
+  local site_root="$1"
+  [[ -r "$site_root/bitrix/.settings.php" || -r "$site_root/bitrix/php_interface/dbconn.php" ]]
+}
+
+site_code_for_path() {
+  local site_path="$1"
+  local base
+  base="$(basename "$site_path")"
+  printf '%s\n' "$base" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^[:alnum:]]+/-/g; s/^-+//; s/-+$//'
+}
+
+write_site_entry() {
+  local code="$1"
+  local path="$2"
+
+  cat <<YAML
+  - code: $code
+    enabled: true
+    path: $path
+    repo: $repo_prefix/$code
+    env_file: /etc/bitrix-backup/sites/$code.env
+    db_config: auto_detect
+    excludes: []
+YAML
+}
+
+tmp_output="${output}.tmp"
+
+{
+  cat <<'YAML'
+defaults:
+  retention:
+    keep_daily: 3
+    keep_weekly: 1
+    keep_monthly: 1
+  default_excludes: true
+  global_exclude_file: /etc/bitrix-backup/excludes.local
+  webhook_env_file: /etc/bitrix-backup/webhook.env
+sites:
+YAML
+
+  www_path="$root/www"
+  if [[ -d "$www_path" ]] && site_has_db_config "$www_path"; then
+    write_site_entry "www" "$www_path"
+  fi
+
+  ext_root="$root/ext_www"
+  if [[ -d "$ext_root" ]]; then
+    while IFS= read -r ext_site; do
+      [[ -n "$ext_site" ]] || continue
+      if site_has_db_config "$ext_site"; then
+        code="$(site_code_for_path "$ext_site")"
+        [[ -n "$code" ]] || continue
+        write_site_entry "$code" "$ext_site"
+      fi
+    done < <(find "$ext_root" -mindepth 1 -maxdepth 1 -type d | sort)
+  fi
+} >"$tmp_output"
+
+mv "$tmp_output" "$output"
