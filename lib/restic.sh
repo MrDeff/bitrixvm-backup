@@ -55,10 +55,15 @@ restic_latest_snapshot_id() {
   local repo="$1"
   local tag="$2"
 
-  restic_base "$repo" snapshots --json --last --tag "$tag" \
+  restic_base "$repo" snapshots --json --tag "$tag" \
     | python3 -c 'import json, sys
 data = json.load(sys.stdin)
-if isinstance(data, list) and data:
-    print(data[-1].get("short_id", ""))
+if not isinstance(data, list) or not data:
+    sys.exit(1)
+snapshot = max(data, key=lambda item: item.get("time", ""))
+snapshot_id = snapshot.get("id") or snapshot.get("short_id")
+if not snapshot_id:
+    sys.exit(1)
+print(snapshot_id)
 '
 }
