@@ -1,0 +1,20 @@
+defaults:
+  retention:
+    keep_daily: 3
+    keep_weekly: 1
+    keep_monthly: 1
+  default_excludes: true
+  global_exclude_file: /etc/bitrix-backup/excludes.local
+  webhook_env_file: /etc/bitrix-backup/webhook.env
+
+sites:
+  - code: example-com
+    enabled: true
+    path: /home/bitrix/ext_www/example.com
+    repo: sftp:backup@example-backup-host:/backups/bitrix/example-com
+    env_file: /etc/bitrix-backup/sites/example-com.env
+    db_config:
+      auto_detect: true
+    excludes:
+      - /upload/import
+      - "*.log"

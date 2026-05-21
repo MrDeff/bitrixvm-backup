@@ -16,4 +16,9 @@ done
 assert_contains "set -euo pipefail" "$ROOT_DIR/lib/common.sh"
 assert_contains "log_info" "$ROOT_DIR/lib/logging.sh"
 
+for test_script in "$ROOT_DIR"/tests/unit/*-test.sh; do
+  [[ -e "$test_script" ]] || continue
+  bash "$test_script"
+done
+
 printf 'ok - smoke tests\n'
