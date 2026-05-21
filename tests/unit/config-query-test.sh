@@ -54,4 +54,22 @@ if python3 "$ROOT_DIR/lib/config-query.py" "$bad_config" enabled-site-codes >/de
   fail "invalid YAML was accepted"
 fi
 
+bad_sites="$WORK_DIR/bad-sites.yml"
+printf 'sites: [nope]\n' >"$bad_sites"
+if python3 "$ROOT_DIR/lib/config-query.py" "$bad_sites" enabled-site-codes >/dev/null 2>&1; then
+  fail "non-mapping site entry was accepted"
+fi
+
+bad_retention="$WORK_DIR/bad-retention.yml"
+printf 'defaults: {retention: nope}\nsites: []\n' >"$bad_retention"
+if python3 "$ROOT_DIR/lib/config-query.py" "$bad_retention" enabled-site-codes >/dev/null 2>&1; then
+  fail "non-mapping default retention was accepted"
+fi
+
+bad_excludes="$WORK_DIR/bad-excludes.yml"
+printf 'sites:\n  - code: example-com\n    excludes: "*.log"\n' >"$bad_excludes"
+if python3 "$ROOT_DIR/lib/config-query.py" "$bad_excludes" site-excludes example-com >/dev/null 2>&1; then
+  fail "non-list excludes was accepted"
+fi
+
 printf 'ok - config query\n'

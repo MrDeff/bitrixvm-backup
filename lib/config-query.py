@@ -27,7 +27,30 @@ def load_config(path):
 
     data.setdefault("defaults", {})
     data.setdefault("sites", [])
+    validate_config(data)
     return data
+
+
+def validate_mapping(value, message):
+    if value is not None and not isinstance(value, dict):
+        raise SystemExit(message)
+
+
+def validate_string_list(value, message):
+    if value is None:
+        return
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise SystemExit(message)
+
+
+def validate_config(data):
+    defaults = data.get("defaults") or {}
+    validate_mapping(defaults.get("retention"), "config defaults.retention must be a mapping")
+
+    for site in data.get("sites") or []:
+        validate_mapping(site, "config site entries must be mappings")
+        validate_mapping(site.get("retention"), "config site retention must be a mapping")
+        validate_string_list(site.get("excludes"), "config site excludes must be a list of strings")
 
 
 def merged_site(config, code):
