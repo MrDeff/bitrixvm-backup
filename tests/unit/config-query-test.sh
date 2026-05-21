@@ -60,6 +60,12 @@ if python3 "$ROOT_DIR/lib/config-query.py" "$bad_sites" enabled-site-codes >/dev
   fail "non-mapping site entry was accepted"
 fi
 
+bad_root="$WORK_DIR/bad-root.yml"
+printf '[]\n' >"$bad_root"
+if python3 "$ROOT_DIR/lib/config-query.py" "$bad_root" enabled-site-codes >/dev/null 2>&1; then
+  fail "non-mapping config root was accepted"
+fi
+
 bad_retention="$WORK_DIR/bad-retention.yml"
 printf 'defaults: {retention: nope}\nsites: []\n' >"$bad_retention"
 if python3 "$ROOT_DIR/lib/config-query.py" "$bad_retention" enabled-site-codes >/dev/null 2>&1; then

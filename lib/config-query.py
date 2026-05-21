@@ -12,7 +12,9 @@ except ImportError:
 def load_config(path):
     try:
         with open(path, "r", encoding="utf-8") as handle:
-            data = yaml.safe_load(handle) or {}
+            data = yaml.safe_load(handle)
+            if data is None:
+                data = {}
     except OSError as error:
         raise SystemExit(f"cannot read config {path}: {error}") from error
     except yaml.YAMLError as error:
