@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/lib/common.sh"
+source "$ROOT_DIR/lib/logging.sh"
+
+usage() {
+  cat <<'USAGE'
+Usage: bitrix-backup-verify [--help]
+USAGE
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+usage
+exit 2
