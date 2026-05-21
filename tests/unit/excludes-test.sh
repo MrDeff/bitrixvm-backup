@@ -12,7 +12,8 @@ mkdir -p "$WORK_DIR"
 global_file="$WORK_DIR/global.exclude"
 output_file="$WORK_DIR/merged.exclude"
 
-printf '%s\n' "/upload/import" "*.tmp" >"$global_file"
+printf '%s\n' "/upload/import" "  # ignored comment" "*.tmp" >"$global_file"
+printf 'sentinel\n' >"$output_file.tmp"
 
 build_exclude_file true "$global_file" "$output_file" "/local/cache" "*.log"
 
@@ -22,5 +23,11 @@ assert_contains "/upload/import" "$output_file"
 assert_contains "*.tmp" "$output_file"
 assert_contains "/local/cache" "$output_file"
 assert_contains "*.log" "$output_file"
+
+if grep -F 'ignored comment' "$output_file" >/dev/null; then
+  fail "indented comment was included in excludes"
+fi
+
+assert_contains "sentinel" "$output_file.tmp"
 
 printf 'ok - excludes\n'
