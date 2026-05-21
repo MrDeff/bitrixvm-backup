@@ -10,8 +10,21 @@ except ImportError:
 
 
 def load_config(path):
-    with open(path, "r", encoding="utf-8") as handle:
-        data = yaml.safe_load(handle) or {}
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = yaml.safe_load(handle) or {}
+    except OSError as error:
+        raise SystemExit(f"cannot read config {path}: {error}") from error
+    except yaml.YAMLError as error:
+        raise SystemExit(f"invalid YAML in {path}: {error}") from error
+
+    if not isinstance(data, dict):
+        raise SystemExit("config root must be a mapping")
+    if "defaults" in data and data["defaults"] is not None and not isinstance(data["defaults"], dict):
+        raise SystemExit("config defaults must be a mapping")
+    if "sites" in data and data["sites"] is not None and not isinstance(data["sites"], list):
+        raise SystemExit("config sites must be a list")
+
     data.setdefault("defaults", {})
     data.setdefault("sites", [])
     return data
@@ -54,46 +67,56 @@ def print_json(value):
     print(json.dumps(value, ensure_ascii=False, sort_keys=True))
 
 
+def print_scalar(value):
+    if isinstance(value, (dict, list)):
+        print_json(value)
+    elif isinstance(value, bool):
+        print("true" if value else "false")
+    elif value is None:
+        print("")
+    else:
+        print(value)
+
+
 def main(argv):
     if len(argv) < 3:
         print("Usage: config-query.py <sites.yml> <command> [args...]", file=sys.stderr)
         return 2
 
-    config = load_config(argv[1])
     command = argv[2]
+    expected_argc = {
+        "enabled-site-codes": 3,
+        "site-json": 4,
+        "site-field": 5,
+        "site-excludes": 4,
+    }
+    if command not in expected_argc:
+        print(f"unknown command: {command}", file=sys.stderr)
+        return 2
+    if len(argv) != expected_argc[command]:
+        print("Usage: config-query.py <sites.yml> <command> [args...]", file=sys.stderr)
+        return 2
+
+    config = load_config(argv[1])
 
     if command == "enabled-site-codes":
         print("\n".join(enabled_site_codes(config)))
         return 0
 
     if command == "site-json":
-        if len(argv) != 4:
-            print("Usage: config-query.py <sites.yml> site-json <code>", file=sys.stderr)
-            return 2
         print_json(merged_site(config, argv[3]))
         return 0
 
     if command == "site-field":
-        if len(argv) != 5:
-            print("Usage: config-query.py <sites.yml> site-field <code> <field>", file=sys.stderr)
-            return 2
         site = merged_site(config, argv[3])
-        value = site.get(argv[4], "")
-        if isinstance(value, (dict, list)):
-            print_json(value)
-        else:
-            print(value)
+        print_scalar(site.get(argv[4], ""))
         return 0
 
     if command == "site-excludes":
-        if len(argv) != 4:
-            print("Usage: config-query.py <sites.yml> site-excludes <code>", file=sys.stderr)
-            return 2
         site = merged_site(config, argv[3])
         print("\n".join(site.get("excludes") or []))
         return 0
 
-    print(f"unknown command: {command}", file=sys.stderr)
     return 2
 
 
