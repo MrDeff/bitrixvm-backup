@@ -14,4 +14,26 @@ printf '%s\n' "$dbconn_json" | grep '"database":"dbconn_db"' >/dev/null || fail 
 printf '%s\n' "$dbconn_json" | grep '"login":"dbconn_user"' >/dev/null || fail "dbconn config missing login"
 printf '%s\n' "$dbconn_json" | grep '"password":"dbconn_pass"' >/dev/null || fail "dbconn config missing password"
 
+bad_site="$ROOT_DIR/.test-work/db-config/bad-settings"
+mkdir -p "$bad_site/bitrix"
+cat >"$bad_site/bitrix/.settings.php" <<'PHP'
+<?php
+return [
+    'connections' => [
+        'value' => [
+            'default' => [
+                'host' => 'localhost',
+                'database' => ['bad'],
+                'login' => 'settings_user',
+                'password' => 'settings_pass',
+            ],
+        ],
+    ],
+];
+PHP
+
+if php "$ROOT_DIR/lib/db-config-reader.php" "$bad_site" >/dev/null 2>&1; then
+  fail "malformed settings config was accepted"
+fi
+
 printf 'ok - db config\n'

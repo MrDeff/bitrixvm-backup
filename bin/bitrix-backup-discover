@@ -68,16 +68,22 @@ site_code_for_path() {
     | sed -E 's/[^[:alnum:]]+/-/g; s/^-+//; s/-+$//'
 }
 
+yaml_quote() {
+  python3 -c 'import json,sys; print(json.dumps(sys.argv[1], ensure_ascii=False))' "$1"
+}
+
 write_site_entry() {
   local code="$1"
   local path="$2"
+  local repo="$repo_prefix/$code"
+  local env_file="/etc/bitrix-backup/sites/$code.env"
 
   cat <<YAML
-  - code: $code
+  - code: $(yaml_quote "$code")
     enabled: true
-    path: $path
-    repo: $repo_prefix/$code
-    env_file: /etc/bitrix-backup/sites/$code.env
+    path: $(yaml_quote "$path")
+    repo: $(yaml_quote "$repo")
+    env_file: $(yaml_quote "$env_file")
     db_config:
       auto_detect: true
     excludes: []

@@ -10,6 +10,24 @@ $siteRoot = rtrim($argv[1], '/');
 $settingsPath = $siteRoot . '/bitrix/.settings.php';
 $dbconnPath = $siteRoot . '/bitrix/php_interface/dbconn.php';
 
+function emit_config(array $config): void
+{
+    foreach (['host', 'database', 'login', 'password'] as $field) {
+        if (!array_key_exists($field, $config) || !is_scalar($config[$field])) {
+            fwrite(STDERR, "Invalid Bitrix database config: {$field} must be a scalar value\n");
+            exit(1);
+        }
+    }
+
+    echo json_encode([
+        'host' => (string)$config['host'],
+        'database' => (string)$config['database'],
+        'login' => (string)$config['login'],
+        'password' => (string)$config['password'],
+        'source' => (string)$config['source'],
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+}
+
 if (is_readable($settingsPath)) {
     $settings = include $settingsPath;
     $default = [];
@@ -18,13 +36,13 @@ if (is_readable($settingsPath)) {
         $default = $settings['connections']['value']['default'] ?? [];
     }
 
-    echo json_encode([
-        'host' => (string)($default['host'] ?? ''),
-        'database' => (string)($default['database'] ?? ''),
-        'login' => (string)($default['login'] ?? ''),
-        'password' => (string)($default['password'] ?? ''),
+    emit_config([
+        'host' => $default['host'] ?? '',
+        'database' => $default['database'] ?? '',
+        'login' => $default['login'] ?? '',
+        'password' => $default['password'] ?? '',
         'source' => $settingsPath,
-    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+    ]);
     exit(0);
 }
 
@@ -36,13 +54,13 @@ if (is_readable($dbconnPath)) {
 
     include $dbconnPath;
 
-    echo json_encode([
-        'host' => (string)$DBHost,
-        'database' => (string)$DBName,
-        'login' => (string)$DBLogin,
-        'password' => (string)$DBPassword,
+    emit_config([
+        'host' => $DBHost,
+        'database' => $DBName,
+        'login' => $DBLogin,
+        'password' => $DBPassword,
         'source' => $dbconnPath,
-    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+    ]);
     exit(0);
 }
 
