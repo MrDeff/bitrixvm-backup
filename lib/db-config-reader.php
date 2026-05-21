@@ -23,7 +23,7 @@ if (is_readable($settingsPath)) {
         'database' => (string)($default['database'] ?? ''),
         'login' => (string)($default['login'] ?? ''),
         'password' => (string)($default['password'] ?? ''),
-        'source' => 'bitrix/.settings.php',
+        'source' => $settingsPath,
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     exit(0);
 }
@@ -41,7 +41,7 @@ if (is_readable($dbconnPath)) {
         'database' => (string)$DBName,
         'login' => (string)$DBLogin,
         'password' => (string)$DBPassword,
-        'source' => 'bitrix/php_interface/dbconn.php',
+        'source' => $dbconnPath,
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     exit(0);
 }

@@ -23,6 +23,8 @@ assert_contains "repo: sftp:backup@example:/backups/www" "$OUTPUT"
 assert_contains "code: example-com" "$OUTPUT"
 assert_contains "path: $WORK_DIR/home/bitrix/ext_www/example.com" "$OUTPUT"
 assert_contains "repo: sftp:backup@example:/backups/example-com" "$OUTPUT"
+assert_contains "db_config:" "$OUTPUT"
+assert_contains "auto_detect: true" "$OUTPUT"
 
 if grep -F 'settings_pass' "$OUTPUT" >/dev/null; then
   fail "discovery output leaked settings password"

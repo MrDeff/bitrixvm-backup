@@ -78,7 +78,8 @@ write_site_entry() {
     path: $path
     repo: $repo_prefix/$code
     env_file: /etc/bitrix-backup/sites/$code.env
-    db_config: auto_detect
+    db_config:
+      auto_detect: true
     excludes: []
 YAML
 }
