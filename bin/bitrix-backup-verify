@@ -4,17 +4,138 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/lib/common.sh"
 source "$ROOT_DIR/lib/logging.sh"
+source "$ROOT_DIR/lib/config.sh"
+source "$ROOT_DIR/lib/db-config.sh"
+source "$ROOT_DIR/lib/restic.sh"
 
 usage() {
   cat <<'USAGE'
-Usage: bitrix-backup-verify [--help]
+Usage: bitrix-backup-verify --config /etc/bitrix-backup/sites.yml [--offline]
 USAGE
 }
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+config=""
+offline=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --config)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        log_error "--config requires a path"
+        usage
+        exit 2
+      fi
+      config="$2"
+      shift 2
+      ;;
+    --offline)
+      offline=true
+      shift
+      ;;
+    *)
+      log_error "Unknown argument: $1"
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "$config" ]]; then
+  log_error "--config is required"
   usage
-  exit 0
+  exit 2
 fi
 
-usage
-exit 2
+source_env_file() {
+  local env_file="$1"
+  local status
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$env_file"
+  status=$?
+  set +a
+  return "$status"
+}
+
+file_mode() {
+  local path="$1"
+
+  if stat -f '%Lp' "$path" >/dev/null 2>&1; then
+    stat -f '%Lp' "$path"
+  else
+    stat -c '%a' "$path"
+  fi
+}
+
+verify_env_file_mode() {
+  local code="$1"
+  local env_file="$2"
+  local mode
+
+  if [[ ! -r "$env_file" ]]; then
+    log_error "site $code env file is not readable: $env_file"
+    return 1
+  fi
+
+  mode="$(file_mode "$env_file")" || return 1
+  if [[ "$mode" != "600" ]]; then
+    log_error "site $code env file mode must be 600: $env_file has $mode"
+    return 1
+  fi
+
+  printf 'OK site %s env file mode\n' "$code"
+}
+
+verify_online_snapshots() {
+  local code="$1"
+  local repo="$2"
+  local env_file="$3"
+
+  (
+    source_env_file "$env_file" || exit 1
+    restic_base "$repo" snapshots --tag kind:db >/dev/null
+    restic_base "$repo" snapshots --tag kind:files >/dev/null
+  ) || return 1
+
+  printf 'OK site %s restic snapshots readable\n' "$code"
+}
+
+for command_name in python3 php curl; do
+  bb_require_command "$command_name"
+done
+
+if [[ "$offline" != "true" ]]; then
+  for command_name in restic mysql mysqldump; do
+    bb_require_command "$command_name"
+  done
+fi
+
+if [[ ! -r "$config" ]]; then
+  log_error "config is not readable: $config"
+  exit 1
+fi
+
+site_codes="$(config_enabled_site_codes "$config")" || exit 1
+printf 'OK config readable\n'
+
+while IFS= read -r site_code; do
+  [[ -n "$site_code" ]] || continue
+
+  site_path="$(config_site_field "$config" "$site_code" path)" || exit 1
+  repo="$(config_site_field "$config" "$site_code" repo)" || exit 1
+  env_file="$(config_site_field "$config" "$site_code" env_file)" || exit 1
+
+  db_config_json "$site_path" >/dev/null
+  printf 'OK site %s db config readable\n' "$site_code"
+
+  verify_env_file_mode "$site_code" "$env_file"
+
+  if [[ "$offline" != "true" ]]; then
+    verify_online_snapshots "$site_code" "$repo" "$env_file"
+  fi
+done <<<"$site_codes"
