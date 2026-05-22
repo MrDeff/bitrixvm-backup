@@ -17,27 +17,34 @@ build_exclude_file() {
     rm -f "$raw_file"
     return 1
   }
-  cleanup_exclude_files() {
-    rm -f "$raw_file" "$filtered_file"
-  }
-  trap cleanup_exclude_files RETURN
+  local status=0
 
   if [[ "$use_defaults" == "true" ]]; then
-    cat "$ROOT_DIR/config/excludes.default" >>"$raw_file" || return 1
+    cat "$ROOT_DIR/config/excludes.default" >>"$raw_file" || status=1
   fi
 
-  if [[ -n "$global_file" && -r "$global_file" ]]; then
-    cat "$global_file" >>"$raw_file" || return 1
+  if [[ "$status" -eq 0 && -n "$global_file" && -r "$global_file" ]]; then
+    cat "$global_file" >>"$raw_file" || status=1
   fi
 
   local pattern
-  for pattern in "$@"; do
-    [[ -n "$pattern" ]] || continue
-    printf '%s\n' "$pattern" >>"$raw_file" || return 1
-  done
+  if [[ "$status" -eq 0 ]]; then
+    for pattern in "$@"; do
+      [[ -n "$pattern" ]] || continue
+      printf '%s\n' "$pattern" >>"$raw_file" || {
+        status=1
+        break
+      }
+    done
+  fi
 
-  awk 'NF && $0 !~ /^[[:space:]]*#/ && !seen[$0]++ { print }' "$raw_file" >"$filtered_file" || return 1
-  mv "$filtered_file" "$output_file" || return 1
-  rm -f "$raw_file"
-  trap - RETURN
+  if [[ "$status" -eq 0 ]]; then
+    awk 'NF && $0 !~ /^[[:space:]]*#/ && !seen[$0]++ { print }' "$raw_file" >"$filtered_file" || status=1
+  fi
+  if [[ "$status" -eq 0 ]]; then
+    mv "$filtered_file" "$output_file" || status=1
+  fi
+
+  rm -f "$raw_file" "$filtered_file"
+  return "$status"
 }

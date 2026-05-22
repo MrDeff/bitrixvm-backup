@@ -36,5 +36,6 @@ if ROOT_DIR="$bad_root" build_exclude_file true "" "$bad_output"; then
   fail "missing default excludes did not fail"
 fi
 [[ ! -f "$bad_output" ]] || fail "bad exclude output was created after failure"
+[[ -z "$(trap -p RETURN)" ]] || fail "build_exclude_file left a RETURN trap installed after failure"
 
 printf 'ok - excludes\n'
