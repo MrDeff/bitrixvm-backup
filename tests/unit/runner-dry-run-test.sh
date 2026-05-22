@@ -36,6 +36,10 @@ printf '%s\n' "$output" | grep 'DRY-RUN site=example-com step=db-backup' >/dev/n
 printf '%s\n' "$output" | grep 'DRY-RUN site=example-com step=files-backup' >/dev/null || fail "missing files dry-run"
 printf '%s\n' "$output" | grep 'DRY-RUN site=example-com step=retention kind:db' >/dev/null || fail "missing db retention dry-run"
 
+if BITRIX_BACKUP_TMP="$WORK_DIR/tmp" "$ROOT_DIR/bin/bitrix-backup-run" --config "$WORK_DIR/missing.yml" --dry-run >/dev/null 2>&1; then
+  fail "runner accepted missing config"
+fi
+
 fake_bin="$WORK_DIR/bin"
 mkdir -p "$fake_bin"
 fake_bin="$(cd "$fake_bin" && pwd)"
@@ -145,5 +149,45 @@ BITRIX_BACKUP_TMP="$WORK_DIR/tmp" PATH="$fake_bin:$PATH" RUNNER_CURL_LOG="$curl_
 assert_contains '"status": "success"' "$curl_log"
 assert_contains '"db_snapshot_id": "db-id"' "$curl_log"
 assert_contains '"files_snapshot_id": "files-id"' "$curl_log"
+
+cat >"$WORK_DIR/webhook-empty.env" <<'EOF'
+# intentionally empty
+EOF
+
+cat >"$WORK_DIR/site2.env" <<'EOF'
+# intentionally empty to verify site env isolation
+EOF
+
+cat >"$WORK_DIR/sites-two.yml" <<YAML
+defaults:
+  retention:
+    keep_daily: 3
+    keep_weekly: 1
+    keep_monthly: 1
+  default_excludes: true
+sites:
+  - code: first-site
+    enabled: true
+    path: $WORK_DIR/site
+    repo: local:$WORK_DIR/restic-repo-first
+    env_file: $WORK_DIR/site.env
+    webhook_env_file: $WORK_DIR/webhook.env
+    excludes: []
+  - code: second-site
+    enabled: true
+    path: $WORK_DIR/site
+    repo: local:$WORK_DIR/restic-repo-second
+    env_file: $WORK_DIR/site2.env
+    webhook_env_file: $WORK_DIR/webhook-empty.env
+    excludes: []
+YAML
+
+rm -f "$curl_log"
+BITRIX_BACKUP_TMP="$WORK_DIR/tmp" PATH="$fake_bin:$PATH" RUNNER_CURL_LOG="$curl_log" "$ROOT_DIR/bin/bitrix-backup-run" --config "$WORK_DIR/sites-two.yml" >/dev/null 2>&1 || fail "runner failed for two-site env isolation check"
+[[ "$(wc -l <"$curl_log" | tr -d '[:space:]')" == "1" ]] || fail "empty webhook env reused previous webhook URL"
+assert_contains '"site": "first-site"' "$curl_log"
+if grep -F '"site": "second-site"' "$curl_log" >/dev/null; then
+  fail "second site sent webhook through leaked WEBHOOK_URL"
+fi
 
 printf 'ok - runner dry-run\n'

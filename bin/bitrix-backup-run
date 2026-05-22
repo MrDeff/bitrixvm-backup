@@ -128,13 +128,16 @@ send_site_webhook() {
   local files_snapshot_id="$7"
   local db_snapshot_id="$8"
   local error="$9"
-  local payload
+  local payload WEBHOOK_URL="" WEBHOOK_TOKEN=""
 
   if [[ -z "$webhook_env_file" || ! -r "$webhook_env_file" ]]; then
     return 0
   fi
 
-  source_env_file "$webhook_env_file"
+  source_env_file "$webhook_env_file" || {
+    log_warn "Webhook env failed for $code"
+    return 0
+  }
   payload="$(webhook_payload "$code" "$host_name" "$status" "$started_at" "$finished_at" "$duration" "$files_snapshot_id" "$db_snapshot_id" "$error")"
   send_webhook "${WEBHOOK_URL:-}" "${WEBHOOK_TOKEN:-}" "$payload" || log_warn "Webhook delivery failed for $code"
 }
@@ -151,15 +154,15 @@ run_site() {
   started_at="$(date -Iseconds)"
   start_epoch="$(date +%s)"
 
-  site_path="$(config_site_field "$config" "$code" path)"
-  repo="$(config_site_field "$config" "$code" repo)"
-  env_file="$(config_site_field "$config" "$code" env_file)"
-  global_exclude_file="$(config_site_field "$config" "$code" global_exclude_file)"
-  use_default_excludes="$(config_site_field "$config" "$code" default_excludes)"
-  webhook_env_file="$(config_site_field "$config" "$code" webhook_env_file)"
-  keep_daily="$(config_site_retention_field "$config" "$code" keep_daily)"
-  keep_weekly="$(config_site_retention_field "$config" "$code" keep_weekly)"
-  keep_monthly="$(config_site_retention_field "$config" "$code" keep_monthly)"
+  site_path="$(config_site_field "$config" "$code" path)" || return 1
+  repo="$(config_site_field "$config" "$code" repo)" || return 1
+  env_file="$(config_site_field "$config" "$code" env_file)" || return 1
+  global_exclude_file="$(config_site_field "$config" "$code" global_exclude_file)" || return 1
+  use_default_excludes="$(config_site_field "$config" "$code" default_excludes)" || return 1
+  webhook_env_file="$(config_site_field "$config" "$code" webhook_env_file)" || return 1
+  keep_daily="$(config_site_retention_field "$config" "$code" keep_daily)" || return 1
+  keep_weekly="$(config_site_retention_field "$config" "$code" keep_weekly)" || return 1
+  keep_monthly="$(config_site_retention_field "$config" "$code" keep_monthly)" || return 1
 
   if [[ "$dry_run" == "true" ]]; then
     printf 'DRY-RUN site=%s step=db-backup repo=%s\n' "$code" "$repo"
@@ -169,10 +172,17 @@ run_site() {
     return 0
   fi
 
-  work_dir="$(mktemp -d "$tmp_root/$code.XXXXXX")"
+  work_dir="$(mktemp -d "$tmp_root/$code.XXXXXX")" || {
+    log_error "cannot create work dir for site $code"
+    return 1
+  }
 
   lock_file="$(site_lock_path "$code")"
-  exec 9>"$lock_file"
+  exec 9>"$lock_file" || {
+    rm -rf "$work_dir"
+    log_error "cannot open lock for site $code"
+    return 1
+  }
   if ! flock -n 9; then
     status="failed"
     error="backup failed for site $code"
@@ -199,11 +209,12 @@ run_site() {
 }
 
 overall_status=0
+site_codes="$(config_enabled_site_codes "$config")" || exit 1
 while IFS= read -r site_code; do
   [[ -n "$site_code" ]] || continue
-  if ! run_site "$site_code"; then
+  if ! (run_site "$site_code"); then
     overall_status=1
   fi
-done < <(config_enabled_site_codes "$config")
+done <<<"$site_codes"
 
 exit "$overall_status"
