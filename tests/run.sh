@@ -21,4 +21,11 @@ for test_script in "$ROOT_DIR"/tests/unit/*-test.sh; do
   bash "$test_script"
 done
 
+if [[ "${RUN_INTEGRATION:-0}" == "1" ]]; then
+  for test_script in "$ROOT_DIR"/tests/integration/*-test.sh; do
+    [[ -e "$test_script" ]] || continue
+    bash "$test_script"
+  done
+fi
+
 printf 'ok - smoke tests\n'

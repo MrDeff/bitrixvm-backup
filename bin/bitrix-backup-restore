@@ -4,17 +4,146 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/lib/common.sh"
 source "$ROOT_DIR/lib/logging.sh"
+source "$ROOT_DIR/lib/config.sh"
+source "$ROOT_DIR/lib/restic.sh"
 
 usage() {
   cat <<'USAGE'
-Usage: bitrix-backup-restore [--help]
+Usage: bitrix-backup-restore --config /etc/bitrix-backup/sites.yml --site SITE [--kind files|db|both] [--target /restore] [--snapshot latest]
 USAGE
 }
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+config=""
+site=""
+kind="both"
+target="/restore"
+snapshot="latest"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --config)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        log_error "--config requires a path"
+        usage
+        exit 2
+      fi
+      config="$2"
+      shift 2
+      ;;
+    --site)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        log_error "--site requires a code"
+        usage
+        exit 2
+      fi
+      site="$2"
+      shift 2
+      ;;
+    --kind)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        log_error "--kind requires files, db, or both"
+        usage
+        exit 2
+      fi
+      kind="$2"
+      shift 2
+      ;;
+    --target)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        log_error "--target requires a path"
+        usage
+        exit 2
+      fi
+      target="$2"
+      shift 2
+      ;;
+    --snapshot)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        log_error "--snapshot requires a snapshot id"
+        usage
+        exit 2
+      fi
+      snapshot="$2"
+      shift 2
+      ;;
+    *)
+      log_error "Unknown argument: $1"
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "$config" ]]; then
+  log_error "--config is required"
   usage
-  exit 0
+  exit 2
 fi
 
-usage
-exit 2
+if [[ -z "$site" ]]; then
+  log_error "--site is required"
+  usage
+  exit 2
+fi
+
+case "$kind" in
+  files|db|both)
+    ;;
+  *)
+    log_error "invalid --kind: $kind"
+    usage
+    exit 2
+    ;;
+esac
+
+source_env_file() {
+  local env_file="$1"
+  local status
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$env_file"
+  status=$?
+  set +a
+  return "$status"
+}
+
+restore_files() {
+  local repo="$1"
+  local output="$target/$site/files"
+
+  mkdir -p "$output"
+  restic_base "$repo" restore "$snapshot" --tag kind:files --target "$output"
+}
+
+restore_db() {
+  local repo="$1"
+  local output="$target/$site/db"
+
+  mkdir -p "$output"
+  restic_base "$repo" restore "$snapshot" --tag kind:db --target "$output"
+}
+
+repo="$(config_site_field "$config" "$site" repo)" || exit 1
+env_file="$(config_site_field "$config" "$site" env_file)" || exit 1
+
+(
+  source_env_file "$env_file"
+
+  case "$kind" in
+    files)
+      restore_files "$repo"
+      ;;
+    db)
+      restore_db "$repo"
+      ;;
+    both)
+      restore_files "$repo"
+      restore_db "$repo"
+      ;;
+  esac
+)
