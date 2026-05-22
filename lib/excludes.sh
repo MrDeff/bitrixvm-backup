@@ -32,4 +32,6 @@ build_exclude_file() {
 
   awk 'NF && $0 !~ /^[[:space:]]*#/ && !seen[$0]++ { print }' "$raw_file" >"$filtered_file"
   mv "$filtered_file" "$output_file"
+  rm -f "$raw_file"
+  trap - RETURN
 }

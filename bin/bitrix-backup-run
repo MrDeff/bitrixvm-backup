@@ -69,6 +69,11 @@ source_env_file() {
   return "$status"
 }
 
+site_lock_path() {
+  local code="$1"
+  printf '%s/%s.lock\n' "$tmp_root" "$code"
+}
+
 run_site_backup() {
   local code="$1"
   local site_path="$2"
@@ -84,7 +89,7 @@ run_site_backup() {
   local dump_file="$work_dir/db.sql"
   local exclude_file="$work_dir/excludes.txt"
   local db_host db_name db_user db_pass
-  local site_excludes=() exclude_pattern
+  local site_excludes=() excludes_output
 
   source_env_file "$env_file" || return
 
@@ -98,12 +103,14 @@ run_site_backup() {
   dump_mysql_database "$defaults_file" "$db_name" "$dump_file" || return
   restic_backup_path "$repo" "$dump_file" "$host_name" "kind:db" || return
   DB_SNAPSHOT_ID="$(restic_latest_snapshot_id "$repo" "kind:db")" || return
+  rm -f "$dump_file" || return
 
-  while IFS= read -r exclude_pattern; do
-    site_excludes+=("$exclude_pattern")
-  done < <(config_site_excludes "$config" "$code")
+  excludes_output="$(config_site_excludes "$config" "$code")" || return
+  if [[ -n "$excludes_output" ]]; then
+    mapfile -t site_excludes <<<"$excludes_output"
+  fi
 
-  build_exclude_file "$use_default_excludes" "$global_exclude_file" "$exclude_file" "${site_excludes[@]}" || return
+  build_exclude_file "$use_default_excludes" "$global_exclude_file" "$exclude_file" ${site_excludes[@]+"${site_excludes[@]}"} || return
   (cd "$site_path" && restic_backup_path "$repo" "." "$host_name" "kind:files" --exclude-file "$exclude_file") || return
   FILES_SNAPSHOT_ID="$(restic_latest_snapshot_id "$repo" "kind:files")" || return
 
@@ -163,7 +170,12 @@ run_site() {
 
   work_dir="$(mktemp -d "$tmp_root/$code.XXXXXX")"
 
-  if ! run_site_backup "$code" "$site_path" "$repo" "$env_file" "$global_exclude_file" "$use_default_excludes" "$keep_daily" "$keep_weekly" "$keep_monthly" "$work_dir"; then
+  local lock_file
+  lock_file="$(site_lock_path "$code")"
+  if ! (
+    flock -n 9 || exit 1
+    run_site_backup "$code" "$site_path" "$repo" "$env_file" "$global_exclude_file" "$use_default_excludes" "$keep_daily" "$keep_weekly" "$keep_monthly" "$work_dir"
+  ) 9>"$lock_file"; then
     status="failed"
     error="backup failed for site $code"
     log_error "$error"

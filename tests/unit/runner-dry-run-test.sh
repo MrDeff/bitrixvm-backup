@@ -38,6 +38,7 @@ printf '%s\n' "$output" | grep 'DRY-RUN site=example-com step=retention kind:db'
 
 fake_bin="$WORK_DIR/bin"
 mkdir -p "$fake_bin"
+fake_bin="$(cd "$fake_bin" && pwd)"
 
 cat >"$fake_bin/mysqldump" <<'SH'
 #!/usr/bin/env bash
@@ -61,9 +62,22 @@ fi
 if [[ "$args" == *" backup "* && "$args" == *"db.sql"* ]]; then
   exit 9
 fi
+if [[ "$args" == *" backup ."* ]]; then
+  find "$(pwd)" -name db.sql -print -quit | grep . && exit 8
+fi
 exit 0
 SH
 chmod +x "$fake_bin/restic"
+
+cat >"$fake_bin/flock" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "-n" ]]; then
+  exit 0
+fi
+exit 1
+SH
+chmod +x "$fake_bin/flock"
 
 cat >"$fake_bin/curl" <<'SH'
 #!/usr/bin/env bash
@@ -103,5 +117,28 @@ assert_contains '"status": "failed"' "$curl_log"
 if grep -F '"status": "success"' "$curl_log" >/dev/null; then
   fail "runner sent success webhook after failed backup"
 fi
+
+cat >"$fake_bin/restic" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+args="$*"
+if [[ "$args" == *" snapshots --json --tag kind:db"* ]]; then
+  printf '[{"id":"db-id","time":"2026-05-21T00:00:00Z"}]\n'
+  exit 0
+fi
+if [[ "$args" == *" snapshots --json --tag kind:files"* ]]; then
+  printf '[{"id":"files-id","time":"2026-05-21T00:00:00Z"}]\n'
+  exit 0
+fi
+if [[ "$args" == *" backup ."* ]]; then
+  find "$(pwd)" -name db.sql -print -quit | grep . && exit 8
+fi
+exit 0
+SH
+chmod +x "$fake_bin/restic"
+
+rm -f "$curl_log"
+BITRIX_BACKUP_TMP="$WORK_DIR/tmp" PATH="$fake_bin:$PATH" RUNNER_CURL_LOG="$curl_log" "$ROOT_DIR/bin/bitrix-backup-run" --config "$WORK_DIR/sites-fail.yml" >/dev/null 2>&1 || fail "runner failed when fake restic succeeded"
+assert_contains '"status": "success"' "$curl_log"
 
 printf 'ok - runner dry-run\n'
