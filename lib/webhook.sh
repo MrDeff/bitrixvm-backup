@@ -6,7 +6,14 @@ sanitize_error() {
 
   printf '%s' "$error" | python3 -c 'import re, sys
 text = sys.stdin.read()
-print(re.sub(r"(?i)\b(password|secret|token|key)=\S+", "REDACTED", text), end="")
+patterns = [
+    (r"(?i)(authorization:\s*bearer\s+)\S+", r"\1REDACTED"),
+    (r"(?i)\b([A-Z0-9_]*(PASSWORD|SECRET|TOKEN|ACCESS_KEY|SECRET_KEY)[A-Z0-9_]*\s*=\s*)([\"\047]?)[^\s\"\047]+", r"\1\3REDACTED"),
+    (r"(?i)([\"\047]?(password|secret|token|access_key|secret_key)[\"\047]?\s*:\s*)([\"\047]?)[^,\"\047\s}]+", r"\1\3REDACTED"),
+]
+for pattern, replacement in patterns:
+    text = re.sub(pattern, replacement, text)
+print(text, end="")
 '
 }
 
@@ -22,6 +29,9 @@ webhook_payload() {
   local error="$9"
 
   local sanitized_error
+  if [[ ! "$duration_seconds" =~ ^[0-9]+$ ]]; then
+    duration_seconds=0
+  fi
   sanitized_error="$(sanitize_error "$error")"
 
   python3 - "$site" "$host" "$status" "$started_at" "$finished_at" "$duration_seconds" "$files_snapshot_id" "$db_snapshot_id" "$sanitized_error" <<'PY'
@@ -50,23 +60,16 @@ send_webhook() {
   local url="$1"
   local token="$2"
   local payload="$3"
-  local attempt
 
-  for attempt in 1 2 3; do
-    local curl_args=(-fsS -X POST -H "Content-Type: application/json" --data-binary "$payload")
+  if [[ -z "$url" ]]; then
+    return 0
+  fi
 
-    if [[ -n "$token" ]]; then
-      curl_args+=(-H "Authorization: Bearer $token")
-    fi
+  local curl_args=(-fsS --connect-timeout 5 --max-time 20 --retry 2 --retry-delay 1 --retry-connrefused -X POST -H "Content-Type: application/json" --data-binary "$payload")
 
-    if curl "${curl_args[@]}" "$url"; then
-      return 0
-    fi
+  if [[ -n "$token" ]]; then
+    curl_args+=(-H "Authorization: Bearer $token")
+  fi
 
-    if [[ "$attempt" -lt 3 ]]; then
-      sleep "$attempt"
-    fi
-  done
-
-  return 1
+  curl "${curl_args[@]}" "$url"
 }
