@@ -86,29 +86,29 @@ run_site_backup() {
   local db_host db_name db_user db_pass
   local site_excludes=() exclude_pattern
 
-  source_env_file "$env_file"
+  source_env_file "$env_file" || return
 
-  db_host="$(db_config_field "$site_path" host)"
-  db_name="$(db_config_field "$site_path" database)"
-  db_user="$(db_config_field "$site_path" login)"
-  db_pass="$(db_config_field "$site_path" password)"
+  db_host="$(db_config_field "$site_path" host)" || return
+  db_name="$(db_config_field "$site_path" database)" || return
+  db_user="$(db_config_field "$site_path" login)" || return
+  db_pass="$(db_config_field "$site_path" password)" || return
 
-  restic_init_if_needed "$repo"
-  write_mysql_defaults_file "$defaults_file" "$db_host" "$db_user" "$db_pass"
-  dump_mysql_database "$defaults_file" "$db_name" "$dump_file"
-  restic_backup_path "$repo" "$dump_file" "$host_name" "kind:db"
-  DB_SNAPSHOT_ID="$(restic_latest_snapshot_id "$repo" "kind:db")"
+  restic_init_if_needed "$repo" || return
+  write_mysql_defaults_file "$defaults_file" "$db_host" "$db_user" "$db_pass" || return
+  dump_mysql_database "$defaults_file" "$db_name" "$dump_file" || return
+  restic_backup_path "$repo" "$dump_file" "$host_name" "kind:db" || return
+  DB_SNAPSHOT_ID="$(restic_latest_snapshot_id "$repo" "kind:db")" || return
 
   while IFS= read -r exclude_pattern; do
     site_excludes+=("$exclude_pattern")
   done < <(config_site_excludes "$config" "$code")
 
-  build_exclude_file "$use_default_excludes" "$global_exclude_file" "$exclude_file" "${site_excludes[@]}"
-  (cd "$site_path" && restic_backup_path "$repo" "." "$host_name" "kind:files" --exclude-file "$exclude_file")
-  FILES_SNAPSHOT_ID="$(restic_latest_snapshot_id "$repo" "kind:files")"
+  build_exclude_file "$use_default_excludes" "$global_exclude_file" "$exclude_file" "${site_excludes[@]}" || return
+  (cd "$site_path" && restic_backup_path "$repo" "." "$host_name" "kind:files" --exclude-file "$exclude_file") || return
+  FILES_SNAPSHOT_ID="$(restic_latest_snapshot_id "$repo" "kind:files")" || return
 
-  restic_apply_retention "$repo" "kind:db" "$keep_daily" "$keep_weekly" "$keep_monthly"
-  restic_apply_retention "$repo" "kind:files" "$keep_daily" "$keep_weekly" "$keep_monthly"
+  restic_apply_retention "$repo" "kind:db" "$keep_daily" "$keep_weekly" "$keep_monthly" || return
+  restic_apply_retention "$repo" "kind:files" "$keep_daily" "$keep_weekly" "$keep_monthly" || return
 }
 
 send_site_webhook() {

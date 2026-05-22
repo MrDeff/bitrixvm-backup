@@ -36,4 +36,72 @@ printf '%s\n' "$output" | grep 'DRY-RUN site=example-com step=db-backup' >/dev/n
 printf '%s\n' "$output" | grep 'DRY-RUN site=example-com step=files-backup' >/dev/null || fail "missing files dry-run"
 printf '%s\n' "$output" | grep 'DRY-RUN site=example-com step=retention kind:db' >/dev/null || fail "missing db retention dry-run"
 
+fake_bin="$WORK_DIR/bin"
+mkdir -p "$fake_bin"
+
+cat >"$fake_bin/mysqldump" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'dump\n'
+SH
+chmod +x "$fake_bin/mysqldump"
+
+cat >"$fake_bin/restic" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+args="$*"
+if [[ "$args" == *" snapshots --json --tag kind:db"* ]]; then
+  printf '[{"id":"db-id","time":"2026-05-21T00:00:00Z"}]\n'
+  exit 0
+fi
+if [[ "$args" == *" snapshots --json --tag kind:files"* ]]; then
+  printf '[{"id":"files-id","time":"2026-05-21T00:00:00Z"}]\n'
+  exit 0
+fi
+if [[ "$args" == *" backup "* && "$args" == *"db.sql"* ]]; then
+  exit 9
+fi
+exit 0
+SH
+chmod +x "$fake_bin/restic"
+
+cat >"$fake_bin/curl" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$RUNNER_CURL_LOG"
+exit 0
+SH
+chmod +x "$fake_bin/curl"
+
+cat >"$WORK_DIR/webhook.env" <<'EOF'
+WEBHOOK_URL=https://hook.example
+EOF
+
+cat >"$WORK_DIR/sites-fail.yml" <<YAML
+defaults:
+  retention:
+    keep_daily: 3
+    keep_weekly: 1
+    keep_monthly: 1
+  default_excludes: true
+  webhook_env_file: $WORK_DIR/webhook.env
+sites:
+  - code: example-com
+    enabled: true
+    path: $WORK_DIR/site
+    repo: local:$WORK_DIR/restic-repo
+    env_file: $WORK_DIR/site.env
+    excludes: []
+YAML
+
+curl_log="$WORK_DIR/curl.log"
+if BITRIX_BACKUP_TMP="$WORK_DIR/tmp" PATH="$fake_bin:$PATH" RUNNER_CURL_LOG="$curl_log" "$ROOT_DIR/bin/bitrix-backup-run" --config "$WORK_DIR/sites-fail.yml" >/dev/null 2>&1; then
+  fail "runner succeeded after failed DB restic backup"
+fi
+
+assert_contains '"status": "failed"' "$curl_log"
+if grep -F '"status": "success"' "$curl_log" >/dev/null; then
+  fail "runner sent success webhook after failed backup"
+fi
+
 printf 'ok - runner dry-run\n'
