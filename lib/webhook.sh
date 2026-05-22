@@ -8,8 +8,13 @@ sanitize_error() {
 text = sys.stdin.read()
 patterns = [
     (r"(?i)(authorization:\s*bearer\s+)\S+", r"\1REDACTED"),
-    (r"(?i)\b([A-Z0-9_]*(PASSWORD|SECRET|TOKEN|ACCESS_KEY|SECRET_KEY)[A-Z0-9_]*\s*=\s*)([\"\047]?)[^\s\"\047]+", r"\1\3REDACTED"),
-    (r"(?i)([\"\047]?(password|secret|token|access_key|secret_key)[\"\047]?\s*:\s*)([\"\047]?)[^,\"\047\s}]+", r"\1\3REDACTED"),
+    (r"(?i)([\"\047]?authorization[\"\047]?\s*:\s*[\"\047]?bearer\s+)([^\"\047,\s}]+)([\"\047]?)", r"\1REDACTED\3"),
+    (r"(?i)\b([A-Z0-9_]*(PASSWORD|SECRET|TOKEN|ACCESS_KEY|SECRET_KEY)[A-Z0-9_]*\s*=\s*)\"[^\"]*\"", r"\1\"REDACTED\""),
+    (r"(?i)\b([A-Z0-9_]*(PASSWORD|SECRET|TOKEN|ACCESS_KEY|SECRET_KEY)[A-Z0-9_]*\s*=\s*)\047[^\047]*\047", r"\1\047REDACTED\047"),
+    (r"(?i)\b([A-Z0-9_]*(PASSWORD|SECRET|TOKEN|ACCESS_KEY|SECRET_KEY)[A-Z0-9_]*\s*=\s*)[^\s]+", r"\1REDACTED"),
+    (r"(?i)([\"\047]?(password|secret|token|access_key|secret_key)[\"\047]?\s*:\s*)\"[^\"]*\"", r"\1\"REDACTED\""),
+    (r"(?i)([\"\047]?(password|secret|token|access_key|secret_key)[\"\047]?\s*:\s*)\047[^\047]*\047", r"\1\047REDACTED\047"),
+    (r"(?i)([\"\047]?(password|secret|token|access_key|secret_key)[\"\047]?\s*:\s*)[^,\"\047\s}]+", r"\1REDACTED"),
 ]
 for pattern, replacement in patterns:
     text = re.sub(pattern, replacement, text)

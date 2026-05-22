@@ -20,8 +20,8 @@ payload="$(webhook_payload "example-com" "vm01" "success" "2026-05-21T02:00:00+0
 invalid_duration="$(webhook_payload "example-com" "vm01" "failed" "s" "f" "not-a-number" "" "" "")"
 [[ "$(json_field "$invalid_duration" duration_seconds)" == "0" ]] || fail "invalid duration should become 0"
 
-failed_payload="$(webhook_payload "example-com" "vm01" "failed" "s" "f" "1" "" "" "password=secret RESTIC_PASSWORD=\"abc\" Authorization: Bearer xyz token: value")"
-if printf '%s\n' "$failed_payload" | grep -E 'secret|abc|Bearer xyz|token: value' >/dev/null; then
+failed_payload="$(webhook_payload "example-com" "vm01" "failed" "s" "f" "1" "" "" "password=secret RESTIC_PASSWORD=\"abc def\" Authorization: Bearer xyz token: value {\"Authorization\": \"Bearer abc123\", \"password\": \"abc def\"}")"
+if printf '%s\n' "$failed_payload" | grep -E 'secret|abc|Bearer xyz|token: value|abc123|abc def' >/dev/null; then
   fail "payload leaked secret material"
 fi
 
