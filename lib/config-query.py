@@ -113,6 +113,7 @@ def main(argv):
         "enabled-site-codes": 3,
         "site-json": 4,
         "site-field": 5,
+        "site-retention-field": 5,
         "site-excludes": 4,
     }
     if command not in expected_argc:
@@ -135,6 +136,11 @@ def main(argv):
     if command == "site-field":
         site = merged_site(config, argv[3])
         print_scalar(site.get(argv[4], ""))
+        return 0
+
+    if command == "site-retention-field":
+        site = merged_site(config, argv[3])
+        print_scalar(site.get("retention", {}).get(argv[4], ""))
         return 0
 
     if command == "site-excludes":

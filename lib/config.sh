@@ -19,6 +19,10 @@ config_site_field() {
   config_query "$1" site-field "$2" "$3"
 }
 
+config_site_retention_field() {
+  config_query "$1" site-retention-field "$2" "$3"
+}
+
 config_site_excludes() {
   config_query "$1" site-excludes "$2"
 }

@@ -4,17 +4,190 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/lib/common.sh"
 source "$ROOT_DIR/lib/logging.sh"
+source "$ROOT_DIR/lib/config.sh"
+source "$ROOT_DIR/lib/db-config.sh"
+source "$ROOT_DIR/lib/excludes.sh"
+source "$ROOT_DIR/lib/mysql.sh"
+source "$ROOT_DIR/lib/restic.sh"
+source "$ROOT_DIR/lib/webhook.sh"
 
 usage() {
   cat <<'USAGE'
-Usage: bitrix-backup-run [--help]
+Usage: bitrix-backup-run --config /etc/bitrix-backup/sites.yml [--dry-run]
 USAGE
 }
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+config=""
+dry_run=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --config)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        log_error "--config requires a path"
+        usage
+        exit 2
+      fi
+      config="$2"
+      shift 2
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    *)
+      log_error "Unknown argument: $1"
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "$config" ]]; then
+  log_error "--config is required"
   usage
-  exit 0
+  exit 2
 fi
 
-usage
-exit 2
+host_name="$(hostname -f 2>/dev/null || hostname)"
+tmp_root="${BITRIX_BACKUP_TMP:-/var/tmp/bitrix-backup}"
+mkdir -p "$tmp_root"
+
+source_env_file() {
+  local env_file="$1"
+  local status
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$env_file"
+  status=$?
+  set +a
+  return "$status"
+}
+
+run_site_backup() {
+  local code="$1"
+  local site_path="$2"
+  local repo="$3"
+  local env_file="$4"
+  local global_exclude_file="$5"
+  local use_default_excludes="$6"
+  local keep_daily="$7"
+  local keep_weekly="$8"
+  local keep_monthly="$9"
+  local work_dir="$10"
+  local defaults_file="$work_dir/mysql.cnf"
+  local dump_file="$work_dir/db.sql"
+  local exclude_file="$work_dir/excludes.txt"
+  local db_host db_name db_user db_pass
+  local site_excludes=() exclude_pattern
+
+  source_env_file "$env_file"
+
+  db_host="$(db_config_field "$site_path" host)"
+  db_name="$(db_config_field "$site_path" database)"
+  db_user="$(db_config_field "$site_path" login)"
+  db_pass="$(db_config_field "$site_path" password)"
+
+  restic_init_if_needed "$repo"
+  write_mysql_defaults_file "$defaults_file" "$db_host" "$db_user" "$db_pass"
+  dump_mysql_database "$defaults_file" "$db_name" "$dump_file"
+  restic_backup_path "$repo" "$dump_file" "$host_name" "kind:db"
+  DB_SNAPSHOT_ID="$(restic_latest_snapshot_id "$repo" "kind:db")"
+
+  while IFS= read -r exclude_pattern; do
+    site_excludes+=("$exclude_pattern")
+  done < <(config_site_excludes "$config" "$code")
+
+  build_exclude_file "$use_default_excludes" "$global_exclude_file" "$exclude_file" "${site_excludes[@]}"
+  (cd "$site_path" && restic_backup_path "$repo" "." "$host_name" "kind:files" --exclude-file "$exclude_file")
+  FILES_SNAPSHOT_ID="$(restic_latest_snapshot_id "$repo" "kind:files")"
+
+  restic_apply_retention "$repo" "kind:db" "$keep_daily" "$keep_weekly" "$keep_monthly"
+  restic_apply_retention "$repo" "kind:files" "$keep_daily" "$keep_weekly" "$keep_monthly"
+}
+
+send_site_webhook() {
+  local code="$1"
+  local webhook_env_file="$2"
+  local status="$3"
+  local started_at="$4"
+  local finished_at="$5"
+  local duration="$6"
+  local files_snapshot_id="$7"
+  local db_snapshot_id="$8"
+  local error="$9"
+  local payload
+
+  if [[ -z "$webhook_env_file" || ! -r "$webhook_env_file" ]]; then
+    return 0
+  fi
+
+  source_env_file "$webhook_env_file"
+  payload="$(webhook_payload "$code" "$host_name" "$status" "$started_at" "$finished_at" "$duration" "$files_snapshot_id" "$db_snapshot_id" "$error")"
+  send_webhook "${WEBHOOK_URL:-}" "${WEBHOOK_TOKEN:-}" "$payload" || log_warn "Webhook delivery failed for $code"
+}
+
+run_site() {
+  local code="$1"
+  local site_path repo env_file global_exclude_file use_default_excludes webhook_env_file
+  local keep_daily keep_weekly keep_monthly
+  local started_at finished_at start_epoch finish_epoch duration
+  local work_dir status="success" error=""
+  local DB_SNAPSHOT_ID="" FILES_SNAPSHOT_ID=""
+
+  started_at="$(date -Iseconds)"
+  start_epoch="$(date +%s)"
+
+  site_path="$(config_site_field "$config" "$code" path)"
+  repo="$(config_site_field "$config" "$code" repo)"
+  env_file="$(config_site_field "$config" "$code" env_file)"
+  global_exclude_file="$(config_site_field "$config" "$code" global_exclude_file)"
+  use_default_excludes="$(config_site_field "$config" "$code" default_excludes)"
+  webhook_env_file="$(config_site_field "$config" "$code" webhook_env_file)"
+  keep_daily="$(config_site_retention_field "$config" "$code" keep_daily)"
+  keep_weekly="$(config_site_retention_field "$config" "$code" keep_weekly)"
+  keep_monthly="$(config_site_retention_field "$config" "$code" keep_monthly)"
+
+  if [[ "$dry_run" == "true" ]]; then
+    printf 'DRY-RUN site=%s step=db-backup repo=%s\n' "$code" "$repo"
+    printf 'DRY-RUN site=%s step=files-backup path=%s repo=%s\n' "$code" "$site_path" "$repo"
+    printf 'DRY-RUN site=%s step=retention kind:db daily=%s weekly=%s monthly=%s\n' "$code" "$keep_daily" "$keep_weekly" "$keep_monthly"
+    printf 'DRY-RUN site=%s step=retention kind:files daily=%s weekly=%s monthly=%s\n' "$code" "$keep_daily" "$keep_weekly" "$keep_monthly"
+    return 0
+  fi
+
+  work_dir="$(mktemp -d "$tmp_root/$code.XXXXXX")"
+
+  if ! run_site_backup "$code" "$site_path" "$repo" "$env_file" "$global_exclude_file" "$use_default_excludes" "$keep_daily" "$keep_weekly" "$keep_monthly" "$work_dir"; then
+    status="failed"
+    error="backup failed for site $code"
+    log_error "$error"
+  fi
+
+  rm -rf "$work_dir"
+
+  finished_at="$(date -Iseconds)"
+  finish_epoch="$(date +%s)"
+  duration="$((finish_epoch - start_epoch))"
+
+  if ! send_site_webhook "$code" "$webhook_env_file" "$status" "$started_at" "$finished_at" "$duration" "$FILES_SNAPSHOT_ID" "$DB_SNAPSHOT_ID" "$error"; then
+    log_warn "Webhook delivery failed for $code"
+  fi
+
+  [[ "$status" == "success" ]]
+}
+
+overall_status=0
+while IFS= read -r site_code; do
+  [[ -n "$site_code" ]] || continue
+  if ! run_site "$site_code"; then
+    overall_status=1
+  fi
+done < <(config_enabled_site_codes "$config")
+
+exit "$overall_status"
