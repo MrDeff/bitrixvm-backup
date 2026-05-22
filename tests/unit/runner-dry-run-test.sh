@@ -75,6 +75,9 @@ set -euo pipefail
 if [[ "${1:-}" == "-n" ]]; then
   exit 0
 fi
+if [[ "${1:-}" == "-u" ]]; then
+  exit 0
+fi
 exit 1
 SH
 chmod +x "$fake_bin/flock"
@@ -140,5 +143,7 @@ chmod +x "$fake_bin/restic"
 rm -f "$curl_log"
 BITRIX_BACKUP_TMP="$WORK_DIR/tmp" PATH="$fake_bin:$PATH" RUNNER_CURL_LOG="$curl_log" "$ROOT_DIR/bin/bitrix-backup-run" --config "$WORK_DIR/sites-fail.yml" >/dev/null 2>&1 || fail "runner failed when fake restic succeeded"
 assert_contains '"status": "success"' "$curl_log"
+assert_contains '"db_snapshot_id": "db-id"' "$curl_log"
+assert_contains '"files_snapshot_id": "files-id"' "$curl_log"
 
 printf 'ok - runner dry-run\n'

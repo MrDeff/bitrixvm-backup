@@ -146,6 +146,7 @@ run_site() {
   local started_at finished_at start_epoch finish_epoch duration
   local work_dir status="success" error=""
   local DB_SNAPSHOT_ID="" FILES_SNAPSHOT_ID=""
+  local lock_file
 
   started_at="$(date -Iseconds)"
   start_epoch="$(date +%s)"
@@ -170,12 +171,13 @@ run_site() {
 
   work_dir="$(mktemp -d "$tmp_root/$code.XXXXXX")"
 
-  local lock_file
   lock_file="$(site_lock_path "$code")"
-  if ! (
-    flock -n 9 || exit 1
-    run_site_backup "$code" "$site_path" "$repo" "$env_file" "$global_exclude_file" "$use_default_excludes" "$keep_daily" "$keep_weekly" "$keep_monthly" "$work_dir"
-  ) 9>"$lock_file"; then
+  exec 9>"$lock_file"
+  if ! flock -n 9; then
+    status="failed"
+    error="backup failed for site $code"
+    log_error "$error"
+  elif ! run_site_backup "$code" "$site_path" "$repo" "$env_file" "$global_exclude_file" "$use_default_excludes" "$keep_daily" "$keep_weekly" "$keep_monthly" "$work_dir"; then
     status="failed"
     error="backup failed for site $code"
     log_error "$error"
@@ -190,6 +192,8 @@ run_site() {
   if ! send_site_webhook "$code" "$webhook_env_file" "$status" "$started_at" "$finished_at" "$duration" "$FILES_SNAPSHOT_ID" "$DB_SNAPSHOT_ID" "$error"; then
     log_warn "Webhook delivery failed for $code"
   fi
+  flock -u 9 || true
+  exec 9>&-
 
   [[ "$status" == "success" ]]
 }
