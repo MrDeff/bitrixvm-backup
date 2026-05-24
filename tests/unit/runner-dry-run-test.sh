@@ -5,7 +5,16 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$ROOT_DIR/tests/assert.sh"
 
 WORK_DIR="$ROOT_DIR/.test-work/runner"
+LEAK_DIRS=(
+  "$ROOT_DIR/example-com0"
+  "$ROOT_DIR/first0"
+  "$ROOT_DIR/first-site0"
+  "$ROOT_DIR/second0"
+  "$ROOT_DIR/second-site0"
+)
 rm -rf "$WORK_DIR"
+rm -rf "${LEAK_DIRS[@]}"
+trap 'rm -rf "${LEAK_DIRS[@]}"' EXIT
 mkdir -p "$WORK_DIR/site/bitrix"
 cp "$ROOT_DIR/tests/fixtures/bitrix-settings-site/bitrix/.settings.php" "$WORK_DIR/site/bitrix/.settings.php"
 
@@ -146,6 +155,9 @@ chmod +x "$fake_bin/restic"
 
 rm -f "$curl_log"
 BITRIX_BACKUP_TMP="$WORK_DIR/tmp" PATH="$fake_bin:$PATH" RUNNER_CURL_LOG="$curl_log" "$ROOT_DIR/bin/bitrix-backup-run" --config "$WORK_DIR/sites-fail.yml" >/dev/null 2>&1 || fail "runner failed when fake restic succeeded"
+for leak_dir in "${LEAK_DIRS[@]}"; do
+  [[ ! -e "$leak_dir" ]] || fail "runner wrote temporary files outside BITRIX_BACKUP_TMP: $leak_dir"
+done
 assert_contains '"status": "success"' "$curl_log"
 assert_contains '"db_snapshot_id": "db-id"' "$curl_log"
 assert_contains '"files_snapshot_id": "files-id"' "$curl_log"
@@ -184,6 +196,9 @@ YAML
 
 rm -f "$curl_log"
 BITRIX_BACKUP_TMP="$WORK_DIR/tmp" PATH="$fake_bin:$PATH" RUNNER_CURL_LOG="$curl_log" "$ROOT_DIR/bin/bitrix-backup-run" --config "$WORK_DIR/sites-two.yml" >/dev/null 2>&1 || fail "runner failed for two-site env isolation check"
+for leak_dir in "${LEAK_DIRS[@]}"; do
+  [[ ! -e "$leak_dir" ]] || fail "runner wrote temporary files outside BITRIX_BACKUP_TMP: $leak_dir"
+done
 [[ "$(wc -l <"$curl_log" | tr -d '[:space:]')" == "1" ]] || fail "empty webhook env reused previous webhook URL"
 assert_contains '"site": "first-site"' "$curl_log"
 if grep -F '"site": "second-site"' "$curl_log" >/dev/null; then

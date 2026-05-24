@@ -84,7 +84,7 @@ run_site_backup() {
   local keep_daily="$7"
   local keep_weekly="$8"
   local keep_monthly="$9"
-  local work_dir="$10"
+  local work_dir="${10}"
   local defaults_file="$work_dir/mysql.cnf"
   local dump_file="$work_dir/db.sql"
   local exclude_file="$work_dir/excludes.txt"
