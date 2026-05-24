@@ -32,6 +32,10 @@ cat >"$WORK_DIR/bin/restic" <<'SH'
 set -euo pipefail
 printf '%s\n' "$*" >>"$RESTORE_TEST_LOG"
 case "$*" in
+  *" restore files-snapshot --tag kind:files --target "*)
+    mkdir -p "${*: -1}"
+    printf 'restored file\n' >"${*: -1}/index.php"
+    ;;
   *" snapshots --json --tag kind:db"*)
     printf '[{"id":"db-snapshot","time":"2026-05-21T00:00:00Z"}]\n'
     ;;
@@ -40,6 +44,12 @@ case "$*" in
     ;;
   *" dump db-snapshot /var/tmp/bitrix-backup/example/db.sql"*)
     printf 'CREATE TABLE example(id int);\n'
+    ;;
+  *" ls --json explicit-db-snapshot"*)
+    printf '%s\n' '{"type":"file","path":"/var/tmp/bitrix-backup/explicit/db.sql"}'
+    ;;
+  *" dump explicit-db-snapshot /var/tmp/bitrix-backup/explicit/db.sql"*)
+    printf 'CREATE TABLE explicit_example(id int);\n'
     ;;
   *)
     exit 1
@@ -65,5 +75,20 @@ fi
 if grep -F "/tmp/evil-repo" "$WORK_DIR/restic.log" >/dev/null; then
   fail "env file overrode restore repo"
 fi
+
+RESTORE_TEST_LOG="$WORK_DIR/restic-explicit.log" PATH="$WORK_DIR/bin:$PATH" "$ROOT_DIR/bin/bitrix-backup-restore" \
+  --config "$WORK_DIR/sites.yml" \
+  --site example-com \
+  --kind both \
+  --target "$WORK_DIR/out-explicit" \
+  --files-snapshot files-snapshot \
+  --db-snapshot explicit-db-snapshot
+
+explicit_restore_root="$(find "$WORK_DIR/out-explicit/example-com" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+[[ -n "$explicit_restore_root" ]] || fail "missing explicit restore staging directory"
+assert_contains "restored file" "$explicit_restore_root/files/index.php"
+assert_contains "CREATE TABLE explicit_example" "$explicit_restore_root/db/db.sql"
+assert_contains "restore files-snapshot --tag kind:files" "$WORK_DIR/restic-explicit.log"
+assert_contains "dump explicit-db-snapshot /var/tmp/bitrix-backup/explicit/db.sql" "$WORK_DIR/restic-explicit.log"
 
 printf 'ok - restore\n'

@@ -176,6 +176,11 @@ run_site() {
     log_error "cannot create work dir for site $code"
     return 1
   }
+  cleanup_work_dir() {
+    rm -rf "$work_dir"
+  }
+  trap cleanup_work_dir EXIT
+  trap 'cleanup_work_dir; exit 143' TERM INT HUP
 
   lock_file="$(site_lock_path "$code")"
   exec 9>"$lock_file" || {
@@ -193,7 +198,8 @@ run_site() {
     log_error "$error"
   fi
 
-  rm -rf "$work_dir"
+  cleanup_work_dir
+  trap - EXIT TERM INT HUP
 
   finished_at="$(date -Iseconds)"
   finish_epoch="$(date +%s)"

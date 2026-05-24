@@ -95,6 +95,36 @@ exit 1
 SH
 chmod +x "$fake_bin/flock"
 
+cat >"$fake_bin/restic" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+args="$*"
+if [[ "$args" == *" snapshots"* ]]; then
+  exit 0
+fi
+if [[ "$args" == *" backup "* && "$args" == *"db.sql"* ]]; then
+  find "$RUNNER_SIGNAL_TMP" -maxdepth 1 -mindepth 1 -type d -name 'example-com.*' -print >"$RUNNER_SIGNAL_MARKER"
+  kill -TERM "$PPID"
+  exit 143
+fi
+exit 0
+SH
+chmod +x "$fake_bin/restic"
+
+signal_marker="$WORK_DIR/signal-work-dir"
+rm -f "$signal_marker"
+BITRIX_BACKUP_TMP="$WORK_DIR/tmp-signal" PATH="$fake_bin:$PATH" RUNNER_SIGNAL_TMP="$WORK_DIR/tmp-signal" RUNNER_SIGNAL_MARKER="$signal_marker" \
+  "$ROOT_DIR/bin/bitrix-backup-run" --config "$WORK_DIR/sites.yml" >/dev/null 2>&1 &
+runner_pid=$!
+for _ in {1..50}; do
+  [[ -s "$signal_marker" ]] && break
+  sleep 0.1
+done
+[[ -s "$signal_marker" ]] || fail "runner signal cleanup test did not reach DB backup"
+signal_work_dir="$(cat "$signal_marker")"
+wait "$runner_pid" 2>/dev/null || true
+[[ ! -e "$signal_work_dir" ]] || fail "runner left temporary work dir after termination: $signal_work_dir"
+
 cat >"$fake_bin/curl" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail

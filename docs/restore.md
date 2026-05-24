@@ -24,6 +24,20 @@ The restore command creates a restore-specific directory:
 
 When `--snapshot latest` is used, `<restore-id>` is a UTC timestamp such as `20260524T031500Z`. When a snapshot ID is provided, unsafe path characters are replaced before creating the staging directory.
 
+To restore an exact file/database pair reported by a webhook, pass each snapshot ID explicitly:
+
+```bash
+/opt/bitrix-backup/bin/bitrix-backup-restore \
+  --config /etc/bitrix-backup/sites.yml \
+  --site example-com \
+  --kind both \
+  --target /restore \
+  --files-snapshot files-snapshot-id \
+  --db-snapshot db-snapshot-id
+```
+
+When file and DB snapshot IDs differ, `<restore-id>` is built from both sanitized IDs.
+
 ## Restore Files
 
 Review staged files under `/restore/<site>/<restore-id>/files`. Copy only the files you intend to recover back to the production site path after validating ownership, permissions, and application state.

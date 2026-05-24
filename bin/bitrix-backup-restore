@@ -9,7 +9,7 @@ source "$ROOT_DIR/lib/restic.sh"
 
 usage() {
   cat <<'USAGE'
-Usage: bitrix-backup-restore --config /etc/bitrix-backup/sites.yml --site SITE [--kind files|db|both] [--target /restore] [--snapshot latest]
+Usage: bitrix-backup-restore --config /etc/bitrix-backup/sites.yml --site SITE [--kind files|db|both] [--target /restore] [--snapshot latest] [--files-snapshot ID] [--db-snapshot ID]
 USAGE
 }
 
@@ -18,6 +18,8 @@ site=""
 kind="both"
 target="/restore"
 snapshot="latest"
+files_snapshot=""
+db_snapshot=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -68,6 +70,24 @@ while [[ $# -gt 0 ]]; do
         exit 2
       fi
       snapshot="$2"
+      shift 2
+      ;;
+    --files-snapshot)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        log_error "--files-snapshot requires a snapshot id"
+        usage
+        exit 2
+      fi
+      files_snapshot="$2"
+      shift 2
+      ;;
+    --db-snapshot)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        log_error "--db-snapshot requires a snapshot id"
+        usage
+        exit 2
+      fi
+      db_snapshot="$2"
       shift 2
       ;;
     *)
@@ -198,20 +218,26 @@ restore_site="$site"
 restore_kind="$kind"
 restore_target="$target"
 restore_snapshot="$snapshot"
+restore_files_snapshot="${files_snapshot:-$restore_snapshot}"
+restore_db_snapshot="${db_snapshot:-$restore_snapshot}"
 restore_repo="$(config_site_field "$config" "$restore_site" repo)" || exit 1
 restore_env_file="$(config_site_field "$config" "$restore_site" env_file)" || exit 1
-restore_id_value="$(restore_id "$restore_snapshot")"
+if [[ "$restore_files_snapshot" == "$restore_db_snapshot" ]]; then
+  restore_id_value="$(restore_id "$restore_files_snapshot")"
+else
+  restore_id_value="$(restore_id "$restore_files_snapshot")_$(restore_id "$restore_db_snapshot")"
+fi
 restore_root="$restore_target/$restore_site/$restore_id_value"
 
 case "$restore_kind" in
   files)
-    restore_files "$restore_repo" "$restore_env_file" "$restore_snapshot" "$restore_root/files"
+    restore_files "$restore_repo" "$restore_env_file" "$restore_files_snapshot" "$restore_root/files"
     ;;
   db)
-    restore_db "$restore_repo" "$restore_env_file" "$restore_snapshot" "$restore_root/db/db.sql"
+    restore_db "$restore_repo" "$restore_env_file" "$restore_db_snapshot" "$restore_root/db/db.sql"
     ;;
   both)
-    restore_files "$restore_repo" "$restore_env_file" "$restore_snapshot" "$restore_root/files"
-    restore_db "$restore_repo" "$restore_env_file" "$restore_snapshot" "$restore_root/db/db.sql"
+    restore_files "$restore_repo" "$restore_env_file" "$restore_files_snapshot" "$restore_root/files"
+    restore_db "$restore_repo" "$restore_env_file" "$restore_db_snapshot" "$restore_root/db/db.sql"
     ;;
 esac

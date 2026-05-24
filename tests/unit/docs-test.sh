@@ -25,5 +25,7 @@ assert_contains "/etc/bitrix-backup/sites/example-com.env" "$ROOT_DIR/docs/stora
 assert_contains "bitrix-backup-restore" "$ROOT_DIR/docs/restore.md"
 assert_contains "/restore/example-com/<restore-id>/files" "$ROOT_DIR/docs/restore.md"
 assert_contains "/restore/example-com/<restore-id>/db/db.sql" "$ROOT_DIR/docs/restore.md"
+assert_contains "--files-snapshot files-snapshot-id" "$ROOT_DIR/docs/restore.md"
+assert_contains "--db-snapshot db-snapshot-id" "$ROOT_DIR/docs/restore.md"
 
 printf 'ok - docs\n'
