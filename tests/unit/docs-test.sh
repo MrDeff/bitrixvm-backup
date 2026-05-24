@@ -4,11 +4,21 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$ROOT_DIR/tests/assert.sh"
 
-assert_contains "ExecStart=/opt/bitrix-backup/bin/bitrix-backup-run" "$ROOT_DIR/systemd/bitrix-backup.service"
-assert_contains "OnCalendar=" "$ROOT_DIR/systemd/bitrix-backup.timer"
+assert_contains "ExecStart=/opt/bitrix-backup/bin/bitrix-backup-run --config /etc/bitrix-backup/sites.yml" "$ROOT_DIR/systemd/bitrix-backup.service"
+assert_contains "OnCalendar=*-*-* 03:15:00" "$ROOT_DIR/systemd/bitrix-backup.timer"
+assert_contains "Persistent=true" "$ROOT_DIR/systemd/bitrix-backup.timer"
+assert_contains "RandomizedDelaySec=20m" "$ROOT_DIR/systemd/bitrix-backup.timer"
+assert_contains "WantedBy=timers.target" "$ROOT_DIR/systemd/bitrix-backup.timer"
 assert_contains "python3-pyyaml" "$ROOT_DIR/docs/install.md"
+assert_contains "RESTIC_PASSWORD" "$ROOT_DIR/docs/install.md"
 assert_contains "restic init" "$ROOT_DIR/docs/storage-sftp.md"
+assert_contains "RESTIC_PASSWORD" "$ROOT_DIR/docs/storage-sftp.md"
 assert_contains "AWS_ACCESS_KEY_ID" "$ROOT_DIR/docs/storage-s3.md"
+assert_contains "AWS_SECRET_ACCESS_KEY" "$ROOT_DIR/docs/storage-s3.md"
+assert_contains "AWS_DEFAULT_REGION" "$ROOT_DIR/docs/storage-s3.md"
+assert_contains "RESTIC_PASSWORD" "$ROOT_DIR/docs/storage-s3.md"
 assert_contains "bitrix-backup-restore" "$ROOT_DIR/docs/restore.md"
+assert_contains "/restore/example-com/<restore-id>/files" "$ROOT_DIR/docs/restore.md"
+assert_contains "/restore/example-com/<restore-id>/db/db.sql" "$ROOT_DIR/docs/restore.md"
 
 printf 'ok - docs\n'
