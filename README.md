@@ -44,9 +44,9 @@ curl -fsSL https://raw.githubusercontent.com/MrDeff/bitrixvm-backup/main/install
   --dry-run
 ```
 
-The installer installs dependencies, downloads this repository to `/opt/bitrix-backup`, creates `/etc/bitrix-backup/sites`, writes `/etc/bitrix-backup/excludes.local` from the default exclude list when missing, discovers Bitrix sites, installs systemd units, and enables the timer unless `--no-systemd-enable` is passed.
+The installer installs dependencies, downloads this repository to `/opt/bitrix-backup`, creates `/etc/bitrix-backup/sites`, writes `/etc/bitrix-backup/excludes.local` from the default exclude list when missing, discovers Bitrix sites, creates missing per-site env files with generated `RESTIC_PASSWORD` values, installs systemd units, and enables the timer unless `--no-systemd-enable` is passed.
 
-After installation, review `/etc/bitrix-backup/sites.yml` and create one root-only environment file per site repository. Real secrets are not generated automatically.
+After installation, review `/etc/bitrix-backup/sites.yml` and save the generated `/etc/bitrix-backup/sites/*.env` secrets securely. Existing env files are never overwritten. Use `--no-generate-restic-passwords` when you want to create env files manually.
 
 ## Manual Install
 
@@ -73,7 +73,7 @@ mkdir -p /etc/bitrix-backup/sites
   --output /etc/bitrix-backup/sites.yml
 ```
 
-Create one root-only environment file per site repository:
+When installing manually, create one root-only environment file per site repository:
 
 ```bash
 install -m 600 /dev/null /etc/bitrix-backup/sites/example-com.env

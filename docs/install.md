@@ -20,9 +20,11 @@ Useful installer options:
 --root <path>                Bitrix sites root. Default: /home/bitrix
 --dry-run                    Print planned commands without changing the system.
 --no-systemd-enable          Install units but do not enable/start the timer.
+--no-generate-restic-passwords
+                             Do not create per-site RESTIC_PASSWORD env files.
 ```
 
-The installer does not create real secret files. It creates `/etc/bitrix-backup/excludes.local` from the default exclude list when the file does not exist. After it finishes, review `/etc/bitrix-backup/sites.yml`, adjust excludes if needed, and create the root-only environment files under `/etc/bitrix-backup/sites/`.
+The installer creates `/etc/bitrix-backup/excludes.local` from the default exclude list when the file does not exist. It also creates missing per-site env files from `sites.yml`, writes generated `RESTIC_PASSWORD` values, and sets file mode `600`. Existing env files are left unchanged. After it finishes, review `/etc/bitrix-backup/sites.yml`, adjust excludes if needed, and save the generated secrets securely.
 
 ## Manual Install
 
@@ -64,7 +66,7 @@ Review `/etc/bitrix-backup/sites.yml` before enabling scheduled backups. Confirm
 
 ## Create Environment Files
 
-Create one environment file per repository. The file must be readable only by root and include at least `RESTIC_PASSWORD`:
+For manual installation, create one environment file per repository. The file must be readable only by root and include at least `RESTIC_PASSWORD`:
 
 ```bash
 install -m 600 /dev/null /etc/bitrix-backup/sites/example-com.env

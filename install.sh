@@ -15,6 +15,8 @@ Options:
   --source-dir <path>          Copy files from a local checkout instead of GitHub.
   --dry-run                    Print planned commands without changing the system.
   --no-systemd-enable          Install units but do not enable/start the timer.
+  --no-generate-restic-passwords
+                               Do not create per-site RESTIC_PASSWORD env files.
   --skip-package-install       Do not run dnf install.
   --skip-os-check              Do not require CentOS/RHEL-like /etc/os-release.
   -h, --help                   Show this help.
@@ -30,6 +32,7 @@ branch="main"
 source_dir=""
 dry_run=false
 enable_systemd=true
+generate_restic_passwords=true
 install_packages=true
 check_os=true
 github_repo="MrDeff/bitrixvm-backup"
@@ -77,6 +80,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-systemd-enable)
       enable_systemd=false
+      shift
+      ;;
+    --no-generate-restic-passwords)
+      generate_restic_passwords=false
       shift
       ;;
     --skip-package-install)
@@ -177,6 +184,75 @@ download_from_github() {
   trap - EXIT
 }
 
+rewrite_generated_config_paths() {
+  local config_path="$1"
+
+  if [[ "$config_dir" == "/etc/bitrix-backup" ]]; then
+    return 0
+  fi
+  if [[ "$dry_run" == "true" ]]; then
+    run python3 - "$config_path" "$config_dir"
+    return 0
+  fi
+  python3 - "$config_path" "$config_dir" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+config_dir = sys.argv[2].rstrip("/")
+text = path.read_text(encoding="utf-8")
+text = text.replace("/etc/bitrix-backup", config_dir)
+path.write_text(text, encoding="utf-8")
+PY
+}
+
+generate_restic_password() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -base64 48
+  else
+    head -c 48 /dev/urandom | base64
+  fi
+}
+
+shell_single_quote() {
+  printf "%s" "$1" | sed "s/'/'\\\\''/g"
+}
+
+create_restic_env_files() {
+  local config_path="$1"
+  local site_codes code env_file password quoted_password created_count=0
+
+  if [[ "$generate_restic_passwords" != "true" ]]; then
+    return 0
+  fi
+  if [[ "$dry_run" == "true" ]]; then
+    printf '+ create missing per-site RESTIC_PASSWORD env files from %s\n' "$config_path"
+    return 0
+  fi
+
+  site_codes="$(python3 "$install_dir/lib/config-query.py" "$config_path" enabled-site-codes)"
+  while IFS= read -r code; do
+    [[ -n "$code" ]] || continue
+    env_file="$(python3 "$install_dir/lib/config-query.py" "$config_path" site-field "$code" env_file)"
+    [[ -n "$env_file" ]] || continue
+    if [[ -f "$env_file" ]]; then
+      printf 'INFO: %s already exists; leaving it unchanged\n' "$env_file"
+      continue
+    fi
+    mkdir -p "$(dirname "$env_file")"
+    password="$(generate_restic_password)"
+    quoted_password="$(shell_single_quote "$password")"
+    (umask 077 && printf "RESTIC_PASSWORD='%s'\n" "$quoted_password" >"$env_file")
+    chmod 600 "$env_file"
+    created_count=$((created_count + 1))
+    printf 'INFO: created RESTIC_PASSWORD env file for site %s: %s\n' "$code" "$env_file"
+  done <<<"$site_codes"
+
+  if [[ "$created_count" -gt 0 ]]; then
+    printf 'INFO: generated %s RESTIC_PASSWORD env file(s); save these secrets securely\n' "$created_count"
+  fi
+}
+
 need_root
 check_supported_os
 
@@ -204,9 +280,12 @@ if [[ ! -f "$config_dir/sites.yml" || "$dry_run" == "true" ]]; then
     --root "$bitrix_root" \
     --repo-prefix "$repo_prefix" \
     --output "$config_dir/sites.yml"
+  rewrite_generated_config_paths "$config_dir/sites.yml"
 else
   printf 'INFO: %s already exists; leaving it unchanged\n' "$config_dir/sites.yml"
 fi
+
+create_restic_env_files "$config_dir/sites.yml"
 
 run mkdir -p "$systemd_dir"
 run cp "$install_dir/systemd/bitrix-backup.service" "$systemd_dir/"
@@ -231,7 +310,7 @@ BitrixVM backup installer finished.
 
 Next steps:
 1. Review $config_dir/sites.yml
-2. Create root-only env files under $config_dir/sites/
+2. Review generated root-only env files under $config_dir/sites/ and save their RESTIC_PASSWORD values securely
 3. Run: $install_dir/bin/bitrix-backup-verify --config $config_dir/sites.yml
 4. Run: $install_dir/bin/bitrix-backup-run --config $config_dir/sites.yml
 EOF

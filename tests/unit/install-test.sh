@@ -49,9 +49,14 @@ assert_contains 'repo: "sftp:backup@example:/srv/restic/www"' "$WORK_DIR/etc/sit
 [[ -d "$WORK_DIR/etc/sites" ]] || fail "installer did not create sites config dir"
 [[ -f "$WORK_DIR/etc/excludes.local" ]] || fail "installer did not create global excludes file"
 assert_contains "/bitrix/cache" "$WORK_DIR/etc/excludes.local"
+[[ -f "$WORK_DIR/etc/sites/www.env" ]] || fail "installer did not create site restic env file"
+assert_contains "RESTIC_PASSWORD='" "$WORK_DIR/etc/sites/www.env"
+env_mode="$(stat -f '%Lp' "$WORK_DIR/etc/sites/www.env" 2>/dev/null || stat -c '%a' "$WORK_DIR/etc/sites/www.env")"
+[[ "$env_mode" == "600" ]] || fail "installer created env file with mode $env_mode"
 [[ -f "$WORK_DIR/systemd/bitrix-backup.service" ]] || fail "installer did not copy systemd service"
 
 printf 'custom-entry\n' >"$WORK_DIR/etc/excludes.local"
+printf "RESTIC_PASSWORD='custom-password'\n" >"$WORK_DIR/etc/sites/www.env"
 BITRIX_BACKUP_INSTALL_ALLOW_NON_ROOT=1 "$ROOT_DIR/install.sh" \
   --source-dir "$ROOT_DIR" \
   --repo-prefix sftp:backup@example:/srv/restic \
@@ -63,5 +68,20 @@ BITRIX_BACKUP_INSTALL_ALLOW_NON_ROOT=1 "$ROOT_DIR/install.sh" \
   --skip-os-check \
   --no-systemd-enable >/dev/null
 assert_contains "custom-entry" "$WORK_DIR/etc/excludes.local"
+assert_contains "custom-password" "$WORK_DIR/etc/sites/www.env"
+
+rm -f "$WORK_DIR/etc/sites/www.env"
+BITRIX_BACKUP_INSTALL_ALLOW_NON_ROOT=1 "$ROOT_DIR/install.sh" \
+  --source-dir "$ROOT_DIR" \
+  --repo-prefix sftp:backup@example:/srv/restic \
+  --install-dir "$WORK_DIR/opt" \
+  --config-dir "$WORK_DIR/etc" \
+  --systemd-dir "$WORK_DIR/systemd" \
+  --root "$WORK_DIR/home/bitrix" \
+  --skip-package-install \
+  --skip-os-check \
+  --no-systemd-enable \
+  --no-generate-restic-passwords >/dev/null
+[[ ! -e "$WORK_DIR/etc/sites/www.env" ]] || fail "installer created env file despite --no-generate-restic-passwords"
 
 printf 'ok - install\n'
