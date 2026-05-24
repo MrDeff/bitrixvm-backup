@@ -38,5 +38,10 @@ assert_contains "/restore/example-com/<restore-id>/files" "$ROOT_DIR/docs/restor
 assert_contains "/restore/example-com/<restore-id>/db/db.sql" "$ROOT_DIR/docs/restore.md"
 assert_contains "--files-snapshot files-snapshot-id" "$ROOT_DIR/docs/restore.md"
 assert_contains "--db-snapshot db-snapshot-id" "$ROOT_DIR/docs/restore.md"
+assert_contains "Restore On Another Server" "$ROOT_DIR/docs/restore.md"
+assert_contains "Restore With Restic Only" "$ROOT_DIR/docs/restore.md"
+assert_contains "restic snapshots --tag kind:files" "$ROOT_DIR/docs/restore.md"
+assert_contains "db_snapshot='db-snapshot-id'" "$ROOT_DIR/docs/restore.md"
+assert_contains 'restic dump "$db_snapshot" "$db_path"' "$ROOT_DIR/docs/restore.md"
 
 printf 'ok - docs\n'

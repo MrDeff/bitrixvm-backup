@@ -140,6 +140,8 @@ To restore an exact pair reported by webhook, pass both snapshot IDs:
 
 See `docs/restore.md`.
 
+`docs/restore.md` also includes examples for unpacking backups on a different server with either `bitrix-backup-restore` or plain `restic`.
+
 ## Documentation
 
 - `docs/install.md` - installation and systemd setup
