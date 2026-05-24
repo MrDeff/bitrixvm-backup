@@ -2,6 +2,30 @@
 
 These steps target CentOS Stream 9 / BitrixVM 9 hosts and install the runner under `/opt/bitrix-backup`.
 
+## One-command Install
+
+Run the installer as root and provide the restic repository prefix that should be used during site discovery:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MrDeff/bitrixvm-backup/main/install.sh | bash -s -- \
+  --repo-prefix sftp:backup@example-backup-host:/srv/restic
+```
+
+Useful installer options:
+
+```text
+--repo-prefix <prefix>       Required restic repository prefix.
+--install-dir <path>         Install directory. Default: /opt/bitrix-backup
+--config-dir <path>          Config directory. Default: /etc/bitrix-backup
+--root <path>                Bitrix sites root. Default: /home/bitrix
+--dry-run                    Print planned commands without changing the system.
+--no-systemd-enable          Install units but do not enable/start the timer.
+```
+
+The installer does not create real secret files. After it finishes, review `/etc/bitrix-backup/sites.yml` and create the root-only environment files under `/etc/bitrix-backup/sites/`.
+
+## Manual Install
+
 ## Install Packages
 
 Install the runtime dependencies:

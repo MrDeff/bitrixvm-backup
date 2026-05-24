@@ -8,7 +8,8 @@ for script in \
   "$ROOT_DIR/bin/bitrix-backup-discover" \
   "$ROOT_DIR/bin/bitrix-backup-run" \
   "$ROOT_DIR/bin/bitrix-backup-verify" \
-  "$ROOT_DIR/bin/bitrix-backup-restore"; do
+  "$ROOT_DIR/bin/bitrix-backup-restore" \
+  "$ROOT_DIR/install.sh"; do
   assert_file_executable "$script"
   "$script" --help | grep -E 'Usage:|usage:' >/dev/null || fail "$script --help lacks usage"
 done

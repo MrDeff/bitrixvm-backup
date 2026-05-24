@@ -29,6 +29,27 @@ tests/     unit and optional integration tests
 
 ## Quick Start
 
+Install with one command as root:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MrDeff/bitrixvm-backup/main/install.sh | bash -s -- \
+  --repo-prefix sftp:backup@example-backup-host:/srv/restic
+```
+
+Preview planned actions without changing the system:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MrDeff/bitrixvm-backup/main/install.sh | bash -s -- \
+  --repo-prefix sftp:backup@example-backup-host:/srv/restic \
+  --dry-run
+```
+
+The installer installs dependencies, downloads this repository to `/opt/bitrix-backup`, creates `/etc/bitrix-backup/sites`, discovers Bitrix sites, installs systemd units, and enables the timer unless `--no-systemd-enable` is passed.
+
+After installation, review `/etc/bitrix-backup/sites.yml` and create one root-only environment file per site repository. Real secrets are not generated automatically.
+
+## Manual Install
+
 Install dependencies on the BitrixVM host:
 
 ```bash
@@ -127,6 +148,7 @@ See `docs/restore.md`.
 - `docs/restore.md` - staging restore workflow
 - `config/sites.example.yml` - configuration example
 - `config/excludes.default` - default Bitrix exclusions
+- `install.sh` - one-command installer
 
 ## Development
 

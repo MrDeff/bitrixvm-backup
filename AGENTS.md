@@ -25,6 +25,7 @@ bin/bitrix-backup-discover  discovers Bitrix sites and writes initial YAML
 bin/bitrix-backup-run       performs DB backup, file backup, retention, webhook
 bin/bitrix-backup-verify    validates config, env files, Bitrix DB config, optional restic access
 bin/bitrix-backup-restore   restores files and DB dumps into staging
+install.sh                  one-command installer for BitrixVM hosts
 
 lib/config-query.py         YAML parser and config merger
 lib/db-config-reader.php    reads Bitrix DB credentials
@@ -70,6 +71,7 @@ shellcheck bin/* lib/*.sh tests/*.sh tests/unit/*.sh tests/integration/*.sh
 - Keep env sourcing isolated per site so secrets and webhook variables do not leak between sites.
 - Use `config-query.py` for YAML access instead of parsing YAML in shell.
 - Keep docs and docs tests in sync when changing CLI flags, paths, or operator workflow.
+- Keep `install.sh`, `docs/install.md`, `README.md`, and `tests/unit/install-test.sh` in sync when changing installation behavior.
 
 ## Security Notes
 
