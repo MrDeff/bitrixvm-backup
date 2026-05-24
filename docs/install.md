@@ -7,7 +7,7 @@ These steps target CentOS Stream 9 / BitrixVM 9 hosts and install the runner und
 Install the runtime dependencies:
 
 ```bash
-dnf install -y restic mysql python3 python3-pyyaml php-cli curl
+dnf install -y restic mysql python3 python3-pyyaml php-cli curl rsync
 ```
 
 ## Copy Application Files
@@ -23,7 +23,7 @@ chmod +x /opt/bitrix-backup/bin/bitrix-backup-*
 Create the configuration directory:
 
 ```bash
-mkdir -p /etc/bitrix-backup
+mkdir -p /etc/bitrix-backup/sites
 ```
 
 ## Generate Site Configuration
@@ -32,6 +32,7 @@ Run discovery to create an initial site configuration:
 
 ```bash
 /opt/bitrix-backup/bin/bitrix-backup-discover \
+  --repo-prefix sftp:backup@example-backup-host:/srv/restic \
   --output /etc/bitrix-backup/sites.yml
 ```
 
@@ -42,11 +43,11 @@ Review `/etc/bitrix-backup/sites.yml` before enabling scheduled backups. Confirm
 Create one environment file per repository. The file must be readable only by root and include at least `RESTIC_PASSWORD`:
 
 ```bash
-install -m 600 /dev/null /etc/bitrix-backup/example-com.env
-cat >/etc/bitrix-backup/example-com.env <<'ENV'
+install -m 600 /dev/null /etc/bitrix-backup/sites/example-com.env
+cat >/etc/bitrix-backup/sites/example-com.env <<'ENV'
 RESTIC_PASSWORD=change-this-long-random-secret
 ENV
-chmod 600 /etc/bitrix-backup/example-com.env
+chmod 600 /etc/bitrix-backup/sites/example-com.env
 ```
 
 Add any storage-specific variables required by the selected backend. See `docs/storage-sftp.md` and `docs/storage-s3.md`.

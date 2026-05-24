@@ -4,7 +4,7 @@ Use an S3-compatible restic repository for AWS S3 or compatible object storage.
 
 ## Environment File
 
-Example `/etc/bitrix-backup/example-com.env`:
+Example `/etc/bitrix-backup/sites/example-com.env`:
 
 ```bash
 RESTIC_PASSWORD=change-this-long-random-secret
@@ -21,7 +21,7 @@ Set the site repository in `/etc/bitrix-backup/sites.yml`:
 
 ```yaml
 repo: s3:s3.amazonaws.com/bitrix-backups/example-com
-env_file: /etc/bitrix-backup/example-com.env
+env_file: /etc/bitrix-backup/sites/example-com.env
 ```
 
 For S3-compatible providers, use that provider's endpoint:
@@ -34,7 +34,7 @@ Initialize the repository once before the first backup:
 
 ```bash
 set -a
-. /etc/bitrix-backup/example-com.env
+. /etc/bitrix-backup/sites/example-com.env
 set +a
 restic -r s3:s3.amazonaws.com/bitrix-backups/example-com init
 ```
