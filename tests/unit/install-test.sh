@@ -47,6 +47,21 @@ BITRIX_BACKUP_INSTALL_ALLOW_NON_ROOT=1 "$ROOT_DIR/install.sh" \
 assert_file_executable "$WORK_DIR/opt/bin/bitrix-backup-run"
 assert_contains 'repo: "sftp:backup@example:/srv/restic/www"' "$WORK_DIR/etc/sites.yml"
 [[ -d "$WORK_DIR/etc/sites" ]] || fail "installer did not create sites config dir"
+[[ -f "$WORK_DIR/etc/excludes.local" ]] || fail "installer did not create global excludes file"
+assert_contains "/bitrix/cache" "$WORK_DIR/etc/excludes.local"
 [[ -f "$WORK_DIR/systemd/bitrix-backup.service" ]] || fail "installer did not copy systemd service"
+
+printf 'custom-entry\n' >"$WORK_DIR/etc/excludes.local"
+BITRIX_BACKUP_INSTALL_ALLOW_NON_ROOT=1 "$ROOT_DIR/install.sh" \
+  --source-dir "$ROOT_DIR" \
+  --repo-prefix sftp:backup@example:/srv/restic \
+  --install-dir "$WORK_DIR/opt" \
+  --config-dir "$WORK_DIR/etc" \
+  --systemd-dir "$WORK_DIR/systemd" \
+  --root "$WORK_DIR/home/bitrix" \
+  --skip-package-install \
+  --skip-os-check \
+  --no-systemd-enable >/dev/null
+assert_contains "custom-entry" "$WORK_DIR/etc/excludes.local"
 
 printf 'ok - install\n'

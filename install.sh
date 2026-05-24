@@ -193,6 +193,12 @@ fi
 run chmod +x "$install_dir"/bin/bitrix-backup-*
 run mkdir -p "$config_dir/sites"
 
+if [[ ! -f "$config_dir/excludes.local" || "$dry_run" == "true" ]]; then
+  run cp "$install_dir/config/excludes.default" "$config_dir/excludes.local"
+else
+  printf 'INFO: %s already exists; leaving it unchanged\n' "$config_dir/excludes.local"
+fi
+
 if [[ ! -f "$config_dir/sites.yml" || "$dry_run" == "true" ]]; then
   run "$install_dir/bin/bitrix-backup-discover" \
     --root "$bitrix_root" \

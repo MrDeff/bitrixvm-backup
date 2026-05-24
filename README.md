@@ -44,7 +44,7 @@ curl -fsSL https://raw.githubusercontent.com/MrDeff/bitrixvm-backup/main/install
   --dry-run
 ```
 
-The installer installs dependencies, downloads this repository to `/opt/bitrix-backup`, creates `/etc/bitrix-backup/sites`, discovers Bitrix sites, installs systemd units, and enables the timer unless `--no-systemd-enable` is passed.
+The installer installs dependencies, downloads this repository to `/opt/bitrix-backup`, creates `/etc/bitrix-backup/sites`, writes `/etc/bitrix-backup/excludes.local` from the default exclude list when missing, discovers Bitrix sites, installs systemd units, and enables the timer unless `--no-systemd-enable` is passed.
 
 After installation, review `/etc/bitrix-backup/sites.yml` and create one root-only environment file per site repository. Real secrets are not generated automatically.
 

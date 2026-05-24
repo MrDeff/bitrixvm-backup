@@ -22,7 +22,7 @@ Useful installer options:
 --no-systemd-enable          Install units but do not enable/start the timer.
 ```
 
-The installer does not create real secret files. After it finishes, review `/etc/bitrix-backup/sites.yml` and create the root-only environment files under `/etc/bitrix-backup/sites/`.
+The installer does not create real secret files. It creates `/etc/bitrix-backup/excludes.local` from the default exclude list when the file does not exist. After it finishes, review `/etc/bitrix-backup/sites.yml`, adjust excludes if needed, and create the root-only environment files under `/etc/bitrix-backup/sites/`.
 
 ## Manual Install
 
