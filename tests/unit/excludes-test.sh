@@ -32,7 +32,7 @@ assert_contains "sentinel" "$output_file.tmp"
 
 bad_root="$WORK_DIR/missing-root"
 bad_output="$WORK_DIR/bad.exclude"
-if ROOT_DIR="$bad_root" build_exclude_file true "" "$bad_output"; then
+if ROOT_DIR="$bad_root" build_exclude_file true "" "$bad_output" 2>/dev/null; then
   fail "missing default excludes did not fail"
 fi
 [[ ! -f "$bad_output" ]] || fail "bad exclude output was created after failure"

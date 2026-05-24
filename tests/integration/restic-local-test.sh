@@ -38,7 +38,7 @@ YAML
 export RESTIC_PASSWORD=test-password
 restic -r "$WORK_DIR/repo" init >/dev/null
 (cd "$WORK_DIR/site" && restic -r "$WORK_DIR/repo" backup index.php --tag kind:files >/dev/null)
-(cd "$WORK_DIR" && restic -r "$WORK_DIR/repo" backup db.sql --tag kind:db >/dev/null)
+restic -r "$WORK_DIR/repo" backup "$WORK_DIR/db.sql" --tag kind:db >/dev/null
 unset RESTIC_PASSWORD
 
 "$ROOT_DIR/bin/bitrix-backup-restore" \
@@ -47,7 +47,9 @@ unset RESTIC_PASSWORD
   --kind both \
   --target "$WORK_DIR/work/restore"
 
-[[ -f "$WORK_DIR/work/restore/example-com/files/index.php" ]] || fail "missing restored file"
-[[ -f "$WORK_DIR/work/restore/example-com/db/db.sql" ]] || fail "missing restored DB dump"
+restore_root="$(find "$WORK_DIR/work/restore/example-com" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+[[ -n "$restore_root" ]] || fail "missing restore staging directory"
+[[ -f "$restore_root/files/index.php" ]] || fail "missing restored file"
+[[ -f "$restore_root/db/db.sql" ]] || fail "missing restored DB dump"
 
 printf 'ok - restic local restore\n'
