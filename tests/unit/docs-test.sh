@@ -4,6 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$ROOT_DIR/tests/assert.sh"
 
+assert_contains "BitrixVM Backup" "$ROOT_DIR/README.md"
+assert_contains "bitrix-backup-run --config" "$ROOT_DIR/README.md"
+assert_contains "RUN_INTEGRATION=1 bash tests/run.sh" "$ROOT_DIR/README.md"
+assert_contains "Agent Notes" "$ROOT_DIR/AGENTS.md"
+assert_contains "Do not commit real" "$ROOT_DIR/AGENTS.md"
+assert_contains "kind:db" "$ROOT_DIR/AGENTS.md"
 assert_contains "ExecStart=/opt/bitrix-backup/bin/bitrix-backup-run --config /etc/bitrix-backup/sites.yml" "$ROOT_DIR/systemd/bitrix-backup.service"
 assert_contains "OnCalendar=*-*-* 03:15:00" "$ROOT_DIR/systemd/bitrix-backup.timer"
 assert_contains "Persistent=true" "$ROOT_DIR/systemd/bitrix-backup.timer"
