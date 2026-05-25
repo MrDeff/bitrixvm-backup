@@ -93,6 +93,8 @@ Add any storage-specific variables required by the selected backend. See `docs/s
 
 ## Install And Enable systemd Timer
 
+The recommended recurring job is the systemd timer from `systemd/bitrix-backup.timer`. By default it runs once per day at `03:15` with up to 20 minutes of randomized delay. `Persistent=true` means systemd will run a missed backup after boot if the VM was powered off at the scheduled time.
+
 Copy the units and enable the timer:
 
 ```bash
@@ -102,16 +104,78 @@ systemctl daemon-reload
 systemctl enable --now bitrix-backup.timer
 ```
 
-Run a manual backup after installation:
+Run a manual backup after installation to verify credentials and repositories before waiting for the schedule:
 
 ```bash
 systemctl start bitrix-backup.service
 systemctl status bitrix-backup.service
 ```
 
-Check scheduled runs with:
+Check that the timer is enabled and see the next scheduled run:
 
 ```bash
 systemctl list-timers bitrix-backup.timer
+journalctl -u bitrix-backup.timer
 journalctl -u bitrix-backup.service
 ```
+
+Check only the latest backup service logs:
+
+```bash
+journalctl -u bitrix-backup.service -n 200 --no-pager
+```
+
+## Change The Schedule
+
+Use a systemd drop-in override instead of editing `/etc/systemd/system/bitrix-backup.timer` directly. This keeps local scheduling changes separate from files copied from the repository.
+
+Example: run daily at `01:30`:
+
+```bash
+systemctl edit bitrix-backup.timer
+```
+
+Add:
+
+```ini
+[Timer]
+OnCalendar=
+OnCalendar=*-*-* 01:30:00
+RandomizedDelaySec=20m
+Persistent=true
+```
+
+Apply and inspect the timer:
+
+```bash
+systemctl daemon-reload
+systemctl restart bitrix-backup.timer
+systemctl list-timers bitrix-backup.timer
+systemctl cat bitrix-backup.timer
+```
+
+## Disable Scheduled Backups
+
+Temporarily stop scheduled runs:
+
+```bash
+systemctl disable --now bitrix-backup.timer
+```
+
+Manual backups still work while the timer is disabled:
+
+```bash
+systemctl start bitrix-backup.service
+```
+
+## Cron Alternative
+
+Use cron only when systemd timers are not available. Keep systemd disabled to avoid duplicate runs.
+
+Example root cron entry for daily backups at `03:15`:
+
+```cron
+15 3 * * * /opt/bitrix-backup/bin/bitrix-backup-run --config /etc/bitrix-backup/sites.yml >>/var/log/bitrix-backup.log 2>&1
+```
+
+When using cron, rotate `/var/log/bitrix-backup.log` with the host's normal log rotation policy.

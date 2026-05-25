@@ -149,7 +149,7 @@ See `docs/restore.md`.
 
 ## Documentation
 
-- `docs/install.md` - installation and systemd setup
+- `docs/install.md` - installation, systemd timer, and cron setup
 - `docs/storage-sftp.md` - SFTP storage setup
 - `docs/storage-s3.md` - S3-compatible storage setup
 - `docs/restore.md` - staging restore workflow
