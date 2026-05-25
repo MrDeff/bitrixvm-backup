@@ -20,6 +20,7 @@ OUTPUT="$WORK_DIR/sites.yml"
 
 assert_contains "db_config:" "$OUTPUT"
 assert_contains "auto_detect: true" "$OUTPUT"
+assert_contains "global_env_file: /etc/bitrix-backup/storage.env" "$OUTPUT"
 
 enabled_codes="$(python3 "$ROOT_DIR/lib/config-query.py" "$OUTPUT" enabled-site-codes)"
 printf '%s\n' "$enabled_codes" | grep '^www$' >/dev/null || fail "missing www site"

@@ -69,6 +69,16 @@ source_env_file() {
   return "$status"
 }
 
+source_site_env_files() {
+  local global_env_file="$1"
+  local site_env_file="$2"
+
+  if [[ -n "$global_env_file" ]]; then
+    source_env_file "$global_env_file" || return
+  fi
+  source_env_file "$site_env_file"
+}
+
 site_lock_path() {
   local code="$1"
   printf '%s/%s.lock\n' "$tmp_root" "$code"
@@ -79,19 +89,20 @@ run_site_backup() {
   local site_path="$2"
   local repo="$3"
   local env_file="$4"
-  local global_exclude_file="$5"
-  local use_default_excludes="$6"
-  local keep_daily="$7"
-  local keep_weekly="$8"
-  local keep_monthly="$9"
-  local work_dir="${10}"
+  local global_env_file="$5"
+  local global_exclude_file="$6"
+  local use_default_excludes="$7"
+  local keep_daily="$8"
+  local keep_weekly="$9"
+  local keep_monthly="${10}"
+  local work_dir="${11}"
   local defaults_file="$work_dir/mysql.cnf"
   local dump_file="$work_dir/db.sql"
   local exclude_file="$work_dir/excludes.txt"
   local db_host db_name db_user db_pass
   local site_excludes=() excludes_output
 
-  source_env_file "$env_file" || return
+  source_site_env_files "$global_env_file" "$env_file" || return
 
   db_host="$(db_config_field "$site_path" host)" || return
   db_name="$(db_config_field "$site_path" database)" || return
@@ -144,7 +155,7 @@ send_site_webhook() {
 
 run_site() {
   local code="$1"
-  local site_path repo env_file global_exclude_file use_default_excludes webhook_env_file
+  local site_path repo env_file global_env_file global_exclude_file use_default_excludes webhook_env_file
   local keep_daily keep_weekly keep_monthly
   local started_at finished_at start_epoch finish_epoch duration
   local work_dir status="success" error=""
@@ -157,6 +168,7 @@ run_site() {
   site_path="$(config_site_field "$config" "$code" path)" || return 1
   repo="$(config_site_field "$config" "$code" repo)" || return 1
   env_file="$(config_site_field "$config" "$code" env_file)" || return 1
+  global_env_file="$(config_site_field "$config" "$code" global_env_file)" || return 1
   global_exclude_file="$(config_site_field "$config" "$code" global_exclude_file)" || return 1
   use_default_excludes="$(config_site_field "$config" "$code" default_excludes)" || return 1
   webhook_env_file="$(config_site_field "$config" "$code" webhook_env_file)" || return 1
@@ -192,7 +204,7 @@ run_site() {
     status="failed"
     error="backup failed for site $code"
     log_error "$error"
-  elif ! run_site_backup "$code" "$site_path" "$repo" "$env_file" "$global_exclude_file" "$use_default_excludes" "$keep_daily" "$keep_weekly" "$keep_monthly" "$work_dir"; then
+  elif ! run_site_backup "$code" "$site_path" "$repo" "$env_file" "$global_env_file" "$global_exclude_file" "$use_default_excludes" "$keep_daily" "$keep_weekly" "$keep_monthly" "$work_dir"; then
     status="failed"
     error="backup failed for site $code"
     log_error "$error"

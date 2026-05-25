@@ -15,6 +15,7 @@ defaults:
     keep_weekly: 1
     keep_monthly: 1
   default_excludes: true
+  global_env_file: /etc/bitrix-backup/storage.env
 sites:
   - code: example-com
     enabled: true
@@ -39,6 +40,9 @@ printf '%s\n' "$site_json" | grep '"keep_daily": 3' >/dev/null || fail "site-jso
 
 default_excludes="$(python3 "$ROOT_DIR/lib/config-query.py" "$CONFIG" site-field example-com default_excludes)"
 [[ "$default_excludes" == "true" ]] || fail "site-field default_excludes returned $default_excludes"
+
+global_env_file="$(python3 "$ROOT_DIR/lib/config-query.py" "$CONFIG" site-field example-com global_env_file)"
+[[ "$global_env_file" == "/etc/bitrix-backup/storage.env" ]] || fail "site-field global_env_file returned $global_env_file"
 
 excludes="$(python3 "$ROOT_DIR/lib/config-query.py" "$CONFIG" site-excludes example-com)"
 printf '%s\n' "$excludes" | grep '^/upload/import$' >/dev/null || fail "missing /upload/import exclude"

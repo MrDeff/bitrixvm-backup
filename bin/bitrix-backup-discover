@@ -101,6 +101,7 @@ defaults:
     keep_monthly: 1
   default_excludes: true
   global_exclude_file: /etc/bitrix-backup/excludes.local
+  global_env_file: /etc/bitrix-backup/storage.env
   webhook_env_file: /etc/bitrix-backup/webhook.env
 sites:
 YAML

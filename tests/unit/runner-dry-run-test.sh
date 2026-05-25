@@ -22,6 +22,11 @@ cat >"$WORK_DIR/site.env" <<'EOF'
 RESTIC_PASSWORD=test-password
 EOF
 
+cat >"$WORK_DIR/global.env" <<'EOF'
+AWS_ACCESS_KEY_ID=global-runner-key
+AWS_DEFAULT_REGION=us-east-1
+EOF
+
 cat >"$WORK_DIR/sites.yml" <<YAML
 defaults:
   retention:
@@ -29,6 +34,7 @@ defaults:
     keep_weekly: 1
     keep_monthly: 1
   default_excludes: true
+  global_env_file: $WORK_DIR/global.env
 sites:
   - code: example-com
     enabled: true
@@ -64,6 +70,7 @@ cat >"$fake_bin/restic" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 args="$*"
+[[ "${AWS_ACCESS_KEY_ID:-}" == "global-runner-key" ]] || exit 21
 if [[ "$args" == *" snapshots --json --tag kind:db"* ]]; then
   printf '[{"id":"db-id","time":"2026-05-21T00:00:00Z"}]\n'
   exit 0
@@ -99,6 +106,7 @@ cat >"$fake_bin/restic" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 args="$*"
+[[ "${AWS_ACCESS_KEY_ID:-}" == "global-runner-key" ]] || exit 21
 if [[ "$args" == *" snapshots"* ]]; then
   exit 0
 fi
@@ -145,6 +153,7 @@ defaults:
     keep_monthly: 1
   default_excludes: true
   webhook_env_file: $WORK_DIR/webhook.env
+  global_env_file: $WORK_DIR/global.env
 sites:
   - code: example-com
     enabled: true
@@ -168,6 +177,7 @@ cat >"$fake_bin/restic" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 args="$*"
+[[ "${AWS_ACCESS_KEY_ID:-}" == "global-runner-key" ]] || exit 21
 if [[ "$args" == *" snapshots --json --tag kind:db"* ]]; then
   printf '[{"id":"db-id","time":"2026-05-21T00:00:00Z"}]\n'
   exit 0
@@ -207,6 +217,7 @@ defaults:
     keep_weekly: 1
     keep_monthly: 1
   default_excludes: true
+  global_env_file: $WORK_DIR/global.env
 sites:
   - code: first-site
     enabled: true

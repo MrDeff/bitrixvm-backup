@@ -132,6 +132,16 @@ source_env_file() {
   return "$status"
 }
 
+source_site_env_files() {
+  local global_env_file="$1"
+  local site_env_file="$2"
+
+  if [[ -n "$global_env_file" ]]; then
+    source_env_file "$global_env_file" || return
+  fi
+  source_env_file "$site_env_file"
+}
+
 restore_id() {
   local snapshot_value="$1"
   if [[ "$snapshot_value" == "latest" ]]; then
@@ -151,35 +161,38 @@ ensure_empty_dir() {
 }
 
 restic_with_env() {
-  local env_file="$1"
-  shift
+  local global_env_file="$1"
+  local env_file="$2"
+  shift 2
   (
-    source_env_file "$env_file"
+    source_site_env_files "$global_env_file" "$env_file"
     restic_base "$@"
   )
 }
 
 restore_files() {
   local repo="$1"
-  local env_file="$2"
-  local snapshot_value="$3"
-  local output="$4"
+  local global_env_file="$2"
+  local env_file="$3"
+  local snapshot_value="$4"
+  local output="$5"
 
   ensure_empty_dir "$output"
-  restic_with_env "$env_file" "$repo" restore "$snapshot_value" --tag kind:files --target "$output"
+  restic_with_env "$global_env_file" "$env_file" "$repo" restore "$snapshot_value" --tag kind:files --target "$output"
 }
 
 restore_db() {
   local repo="$1"
-  local env_file="$2"
-  local snapshot_value="$3"
-  local output="$4"
+  local global_env_file="$2"
+  local env_file="$3"
+  local snapshot_value="$4"
+  local output="$5"
   local snapshot_id db_path tmp_file
 
   ensure_empty_dir "$(dirname "$output")"
   snapshot_id="$snapshot_value"
   if [[ "$snapshot_id" == "latest" ]]; then
-    snapshot_id="$(restic_with_env "$env_file" "$repo" snapshots --json --tag kind:db | python3 -c 'import json,sys
+    snapshot_id="$(restic_with_env "$global_env_file" "$env_file" "$repo" snapshots --json --tag kind:db | python3 -c 'import json,sys
 data=json.load(sys.stdin)
 if not data:
     sys.exit(1)
@@ -191,7 +204,7 @@ print(snap.get("id") or snap.get("short_id") or "")
     log_error "cannot resolve DB snapshot"
     return 1
   }
-  db_path="$(restic_with_env "$env_file" "$repo" ls --json "$snapshot_id" | python3 -c 'import json,sys
+  db_path="$(restic_with_env "$global_env_file" "$env_file" "$repo" ls --json "$snapshot_id" | python3 -c 'import json,sys
 for line in sys.stdin:
     item=json.loads(line)
     if item.get("type") == "file" and item.get("path", "").endswith("/db.sql"):
@@ -204,7 +217,7 @@ sys.exit(1)
     return 1
   }
   tmp_file="$(mktemp "$(dirname "$output")/db.sql.XXXXXX")"
-  if restic_with_env "$env_file" "$repo" dump "$snapshot_id" "$db_path" >"$tmp_file"; then
+  if restic_with_env "$global_env_file" "$env_file" "$repo" dump "$snapshot_id" "$db_path" >"$tmp_file"; then
     chmod 600 "$tmp_file"
     mv "$tmp_file" "$output"
   else
@@ -222,6 +235,7 @@ restore_files_snapshot="${files_snapshot:-$restore_snapshot}"
 restore_db_snapshot="${db_snapshot:-$restore_snapshot}"
 restore_repo="$(config_site_field "$config" "$restore_site" repo)" || exit 1
 restore_env_file="$(config_site_field "$config" "$restore_site" env_file)" || exit 1
+restore_global_env_file="$(config_site_field "$config" "$restore_site" global_env_file)" || exit 1
 if [[ "$restore_files_snapshot" == "$restore_db_snapshot" ]]; then
   restore_id_value="$(restore_id "$restore_files_snapshot")"
 else
@@ -231,13 +245,13 @@ restore_root="$restore_target/$restore_site/$restore_id_value"
 
 case "$restore_kind" in
   files)
-    restore_files "$restore_repo" "$restore_env_file" "$restore_files_snapshot" "$restore_root/files"
+    restore_files "$restore_repo" "$restore_global_env_file" "$restore_env_file" "$restore_files_snapshot" "$restore_root/files"
     ;;
   db)
-    restore_db "$restore_repo" "$restore_env_file" "$restore_db_snapshot" "$restore_root/db/db.sql"
+    restore_db "$restore_repo" "$restore_global_env_file" "$restore_env_file" "$restore_db_snapshot" "$restore_root/db/db.sql"
     ;;
   both)
-    restore_files "$restore_repo" "$restore_env_file" "$restore_files_snapshot" "$restore_root/files"
-    restore_db "$restore_repo" "$restore_env_file" "$restore_db_snapshot" "$restore_root/db/db.sql"
+    restore_files "$restore_repo" "$restore_global_env_file" "$restore_env_file" "$restore_files_snapshot" "$restore_root/files"
+    restore_db "$restore_repo" "$restore_global_env_file" "$restore_env_file" "$restore_db_snapshot" "$restore_root/db/db.sql"
     ;;
 esac

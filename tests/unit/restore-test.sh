@@ -10,6 +10,7 @@ mkdir -p "$WORK_DIR/bin" "$WORK_DIR/site"
 
 cat >"$WORK_DIR/site.env" <<EOF
 RESTIC_PASSWORD=test-password
+AWS_ACCESS_KEY_ID=site-key
 target=/tmp/evil-target
 site=evil-site
 repo=/tmp/evil-repo
@@ -18,7 +19,15 @@ kind=files
 EOF
 chmod 600 "$WORK_DIR/site.env"
 
+cat >"$WORK_DIR/global.env" <<EOF
+AWS_ACCESS_KEY_ID=global-restore-key
+AWS_DEFAULT_REGION=us-east-1
+EOF
+chmod 600 "$WORK_DIR/global.env"
+
 cat >"$WORK_DIR/sites.yml" <<YAML
+defaults:
+  global_env_file: $WORK_DIR/global.env
 sites:
   - code: example-com
     enabled: true
@@ -30,6 +39,8 @@ YAML
 cat >"$WORK_DIR/bin/restic" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ "${AWS_DEFAULT_REGION:-}" == "us-east-1" ]] || exit 23
+[[ "${AWS_ACCESS_KEY_ID:-}" == "site-key" ]] || exit 24
 printf '%s\n' "$*" >>"$RESTORE_TEST_LOG"
 case "$*" in
   *" restore files-snapshot --tag kind:files --target "*)

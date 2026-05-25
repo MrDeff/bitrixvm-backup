@@ -79,6 +79,8 @@ Environment files are expected to be root-only with mode `600`. They may contain
 
 `install.sh` creates missing per-site env files with generated `RESTIC_PASSWORD` values unless `--no-generate-restic-passwords` is passed. It must never print generated passwords to stdout or overwrite existing env files.
 
+Shared credentials belong in `global_env_file`, typically `/etc/bitrix-backup/storage.env`. Code must source `global_env_file` before the per-site `env_file`, so site-specific values can override shared values.
+
 Database credentials are read from Bitrix config and written only to temporary mysql defaults files during backup. DB dumps are backed up first, then removed before file backup so dumps are not included in file snapshots.
 
 Webhook errors are sanitized before payload generation. Do not add raw secret-bearing command output to webhook payloads.

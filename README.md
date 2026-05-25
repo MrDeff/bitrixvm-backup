@@ -44,9 +44,9 @@ curl -fsSL https://raw.githubusercontent.com/MrDeff/bitrixvm-backup/main/install
   --dry-run
 ```
 
-The installer installs dependencies, downloads this repository to `/opt/bitrix-backup`, creates `/etc/bitrix-backup/sites`, writes `/etc/bitrix-backup/excludes.local` from the default exclude list when missing, discovers Bitrix sites, creates missing per-site env files with generated `RESTIC_PASSWORD` values, installs systemd units, and enables the timer unless `--no-systemd-enable` is passed.
+The installer installs dependencies, downloads this repository to `/opt/bitrix-backup`, creates `/etc/bitrix-backup/sites`, writes `/etc/bitrix-backup/excludes.local` from the default exclude list when missing, creates `/etc/bitrix-backup/storage.env` for shared storage credentials, discovers Bitrix sites, creates missing per-site env files with generated `RESTIC_PASSWORD` values, installs systemd units, and enables the timer unless `--no-systemd-enable` is passed.
 
-After installation, review `/etc/bitrix-backup/sites.yml` and save the generated `/etc/bitrix-backup/sites/*.env` secrets securely. Existing env files are never overwritten. Use `--no-generate-restic-passwords` when you want to create env files manually.
+After installation, review `/etc/bitrix-backup/sites.yml`, fill `/etc/bitrix-backup/storage.env` with shared `AWS_*` values if needed, and save the generated `/etc/bitrix-backup/sites/*.env` secrets securely. Existing env files are never overwritten. Use `--no-generate-restic-passwords` when you want to create env files manually.
 
 ## Manual Install
 
@@ -104,8 +104,13 @@ env_file: /etc/bitrix-backup/sites/example-com.env
 S3 repositories use restic URLs such as:
 
 ```yaml
-repo: s3:s3.amazonaws.com/bitrix-backups/example-com
-env_file: /etc/bitrix-backup/sites/example-com.env
+defaults:
+  global_env_file: /etc/bitrix-backup/storage.env
+
+sites:
+  - code: example-com
+    repo: s3:s3.amazonaws.com/bitrix-backups/example-com
+    env_file: /etc/bitrix-backup/sites/example-com.env
 ```
 
 See:

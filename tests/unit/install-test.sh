@@ -49,6 +49,11 @@ assert_contains 'repo: "sftp:backup@example:/srv/restic/www"' "$WORK_DIR/etc/sit
 [[ -d "$WORK_DIR/etc/sites" ]] || fail "installer did not create sites config dir"
 [[ -f "$WORK_DIR/etc/excludes.local" ]] || fail "installer did not create global excludes file"
 assert_contains "/bitrix/cache" "$WORK_DIR/etc/excludes.local"
+[[ -f "$WORK_DIR/etc/storage.env" ]] || fail "installer did not create shared storage env file"
+assert_contains "AWS_ACCESS_KEY_ID" "$WORK_DIR/etc/storage.env"
+assert_contains "global_env_file: $WORK_DIR/etc/storage.env" "$WORK_DIR/etc/sites.yml"
+storage_env_mode="$(stat -f '%Lp' "$WORK_DIR/etc/storage.env" 2>/dev/null || stat -c '%a' "$WORK_DIR/etc/storage.env")"
+[[ "$storage_env_mode" == "600" ]] || fail "installer created storage env file with mode $storage_env_mode"
 [[ -f "$WORK_DIR/etc/sites/www.env" ]] || fail "installer did not create site restic env file"
 assert_contains "RESTIC_PASSWORD='" "$WORK_DIR/etc/sites/www.env"
 env_mode="$(stat -f '%Lp' "$WORK_DIR/etc/sites/www.env" 2>/dev/null || stat -c '%a' "$WORK_DIR/etc/sites/www.env")"
@@ -56,6 +61,7 @@ env_mode="$(stat -f '%Lp' "$WORK_DIR/etc/sites/www.env" 2>/dev/null || stat -c '
 [[ -f "$WORK_DIR/systemd/bitrix-backup.service" ]] || fail "installer did not copy systemd service"
 
 printf 'custom-entry\n' >"$WORK_DIR/etc/excludes.local"
+printf "AWS_ACCESS_KEY_ID='custom-storage-key'\n" >"$WORK_DIR/etc/storage.env"
 printf "RESTIC_PASSWORD='custom-password'\n" >"$WORK_DIR/etc/sites/www.env"
 BITRIX_BACKUP_INSTALL_ALLOW_NON_ROOT=1 "$ROOT_DIR/install.sh" \
   --source-dir "$ROOT_DIR" \
@@ -68,6 +74,7 @@ BITRIX_BACKUP_INSTALL_ALLOW_NON_ROOT=1 "$ROOT_DIR/install.sh" \
   --skip-os-check \
   --no-systemd-enable >/dev/null
 assert_contains "custom-entry" "$WORK_DIR/etc/excludes.local"
+assert_contains "custom-storage-key" "$WORK_DIR/etc/storage.env"
 assert_contains "custom-password" "$WORK_DIR/etc/sites/www.env"
 
 rm -f "$WORK_DIR/etc/sites/www.env"

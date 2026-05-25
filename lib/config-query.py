@@ -71,7 +71,7 @@ def merged_site(config, code):
         if "default_excludes" not in merged:
             merged["default_excludes"] = defaults.get("default_excludes", True)
 
-        for field in ("global_exclude_file", "webhook_env_file"):
+        for field in ("global_exclude_file", "global_env_file", "webhook_env_file"):
             if field not in merged and field in defaults:
                 merged[field] = defaults[field]
 

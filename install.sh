@@ -253,6 +253,30 @@ create_restic_env_files() {
   fi
 }
 
+create_global_storage_env_file() {
+  local storage_env_file="$config_dir/storage.env"
+
+  if [[ "$dry_run" == "true" ]]; then
+    run install -m 600 /dev/null "$storage_env_file"
+    return 0
+  fi
+  if [[ -f "$storage_env_file" ]]; then
+    printf 'INFO: %s already exists; leaving it unchanged\n' "$storage_env_file"
+    return 0
+  fi
+  mkdir -p "$(dirname "$storage_env_file")"
+  (umask 077 && cat >"$storage_env_file" <<'ENV'
+# Optional shared storage credentials for all sites.
+# Uncomment and fill these for S3-compatible repositories:
+# AWS_ACCESS_KEY_ID=''
+# AWS_SECRET_ACCESS_KEY=''
+# AWS_DEFAULT_REGION='us-east-1'
+ENV
+)
+  chmod 600 "$storage_env_file"
+  printf 'INFO: created shared storage env file: %s\n' "$storage_env_file"
+}
+
 need_root
 check_supported_os
 
@@ -274,6 +298,8 @@ if [[ ! -f "$config_dir/excludes.local" || "$dry_run" == "true" ]]; then
 else
   printf 'INFO: %s already exists; leaving it unchanged\n' "$config_dir/excludes.local"
 fi
+
+create_global_storage_env_file
 
 if [[ ! -f "$config_dir/sites.yml" || "$dry_run" == "true" ]]; then
   run "$install_dir/bin/bitrix-backup-discover" \
@@ -310,7 +336,8 @@ BitrixVM backup installer finished.
 
 Next steps:
 1. Review $config_dir/sites.yml
-2. Review generated root-only env files under $config_dir/sites/ and save their RESTIC_PASSWORD values securely
-3. Run: $install_dir/bin/bitrix-backup-verify --config $config_dir/sites.yml
-4. Run: $install_dir/bin/bitrix-backup-run --config $config_dir/sites.yml
+2. Fill shared storage credentials in $config_dir/storage.env if your backend needs them
+3. Review generated root-only env files under $config_dir/sites/ and save their RESTIC_PASSWORD values securely
+4. Run: $install_dir/bin/bitrix-backup-verify --config $config_dir/sites.yml
+5. Run: $install_dir/bin/bitrix-backup-run --config $config_dir/sites.yml
 EOF

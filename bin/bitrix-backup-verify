@@ -62,6 +62,16 @@ source_env_file() {
   return "$status"
 }
 
+source_site_env_files() {
+  local global_env_file="$1"
+  local site_env_file="$2"
+
+  if [[ -n "$global_env_file" ]]; then
+    source_env_file "$global_env_file" || return
+  fi
+  source_env_file "$site_env_file"
+}
+
 file_mode() {
   local path="$1"
 
@@ -75,29 +85,31 @@ file_mode() {
 verify_env_file_mode() {
   local code="$1"
   local env_file="$2"
+  local label="${3:-env file}"
   local mode
 
   if [[ ! -r "$env_file" ]]; then
-    log_error "site $code env file is not readable: $env_file"
+    log_error "site $code $label is not readable: $env_file"
     return 1
   fi
 
   mode="$(file_mode "$env_file")" || return 1
   if [[ "$mode" != "600" ]]; then
-    log_error "site $code env file mode must be 600: $env_file has $mode"
+    log_error "site $code $label mode must be 600: $env_file has $mode"
     return 1
   fi
 
-  printf 'OK site %s env file mode\n' "$code"
+  printf 'OK site %s %s mode\n' "$code" "$label"
 }
 
 verify_online_snapshots() {
   local code="$1"
   local repo="$2"
-  local env_file="$3"
+  local global_env_file="$3"
+  local env_file="$4"
 
   (
-    source_env_file "$env_file" || exit 1
+    source_site_env_files "$global_env_file" "$env_file" || exit 1
     restic_base "$repo" snapshots --tag kind:db >/dev/null
     restic_base "$repo" snapshots --tag kind:files >/dev/null
   ) || return 1
@@ -129,13 +141,17 @@ while IFS= read -r site_code; do
   site_path="$(config_site_field "$config" "$site_code" path)" || exit 1
   repo="$(config_site_field "$config" "$site_code" repo)" || exit 1
   env_file="$(config_site_field "$config" "$site_code" env_file)" || exit 1
+  global_env_file="$(config_site_field "$config" "$site_code" global_env_file)" || exit 1
 
   db_config_json "$site_path" >/dev/null
   printf 'OK site %s db config readable\n' "$site_code"
 
+  if [[ -n "$global_env_file" ]]; then
+    verify_env_file_mode "$site_code" "$global_env_file" "global env file"
+  fi
   verify_env_file_mode "$site_code" "$env_file"
 
   if [[ "$offline" != "true" ]]; then
-    verify_online_snapshots "$site_code" "$repo" "$env_file"
+    verify_online_snapshots "$site_code" "$repo" "$global_env_file" "$env_file"
   fi
 done <<<"$site_codes"

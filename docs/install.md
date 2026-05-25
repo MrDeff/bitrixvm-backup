@@ -24,7 +24,7 @@ Useful installer options:
                              Do not create per-site RESTIC_PASSWORD env files.
 ```
 
-The installer creates `/etc/bitrix-backup/excludes.local` from the default exclude list when the file does not exist. It also creates missing per-site env files from `sites.yml`, writes generated `RESTIC_PASSWORD` values, and sets file mode `600`. Existing env files are left unchanged. After it finishes, review `/etc/bitrix-backup/sites.yml`, adjust excludes if needed, and save the generated secrets securely.
+The installer creates `/etc/bitrix-backup/excludes.local` from the default exclude list when the file does not exist. It also creates `/etc/bitrix-backup/storage.env` for shared storage credentials, creates missing per-site env files from `sites.yml`, writes generated `RESTIC_PASSWORD` values, and sets env file modes to `600`. Existing env files are left unchanged. After it finishes, review `/etc/bitrix-backup/sites.yml`, fill shared storage credentials if needed, adjust excludes if needed, and save the generated secrets securely.
 
 ## Manual Install
 
@@ -66,7 +66,20 @@ Review `/etc/bitrix-backup/sites.yml` before enabling scheduled backups. Confirm
 
 ## Create Environment Files
 
-For manual installation, create one environment file per repository. The file must be readable only by root and include at least `RESTIC_PASSWORD`:
+For manual installation, create a shared storage env file when storage credentials are common to all sites:
+
+```bash
+install -m 600 /dev/null /etc/bitrix-backup/storage.env
+cat >/etc/bitrix-backup/storage.env <<'ENV'
+# Optional shared S3 credentials:
+# AWS_ACCESS_KEY_ID=''
+# AWS_SECRET_ACCESS_KEY=''
+# AWS_DEFAULT_REGION='us-east-1'
+ENV
+chmod 600 /etc/bitrix-backup/storage.env
+```
+
+Then create one environment file per repository. The file must be readable only by root and include at least `RESTIC_PASSWORD`:
 
 ```bash
 install -m 600 /dev/null /etc/bitrix-backup/sites/example-com.env
