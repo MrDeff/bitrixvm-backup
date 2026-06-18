@@ -12,7 +12,15 @@ assert_equals() {
 }
 
 cmd="$(restic_forget_command "kind:db" 3 1 1)"
-assert_equals "forget --tag kind:db --keep-daily 3 --keep-weekly 1 --keep-monthly 1 --prune" "$cmd"
+assert_equals "forget --tag kind:db --group-by tags --keep-daily 3 --keep-weekly 1 --keep-monthly 1 --prune" "$cmd"
+
+restic_base() {
+  [[ "$1" == "repo" ]] || fail "unexpected repo: $1"
+  shift
+  assert_equals "forget --tag kind:db --group-by tags --keep-daily 3 --keep-weekly 1 --keep-monthly 1 --prune" "$*"
+}
+
+restic_apply_retention "repo" "kind:db" 3 1 1
 
 restic_base() {
   [[ "$1" == "repo" ]] || fail "unexpected repo: $1"

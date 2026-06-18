@@ -179,3 +179,26 @@ Example root cron entry for daily backups at `03:15`:
 ```
 
 When using cron, rotate `/var/log/bitrix-backup.log` with the host's normal log rotation policy.
+
+## Retention Check
+
+The runner applies retention after every successful site backup:
+
+```bash
+restic forget --tag kind:db --group-by tags --keep-daily 3 --keep-weekly 1 --keep-monthly 1 --prune
+restic forget --tag kind:files --group-by tags --keep-daily 3 --keep-weekly 1 --keep-monthly 1 --prune
+```
+
+`--group-by tags` is important because database dumps are created in temporary directories before upload. Grouping by tags keeps all `kind:db` snapshots in one retention group and all `kind:files` snapshots in another.
+
+To inspect what remains in a repository:
+
+```bash
+set -a
+. /etc/bitrix-backup/storage.env
+. /etc/bitrix-backup/sites/example-com.env
+set +a
+
+restic -r s3:s3.amazonaws.com/bitrix-backups/example-com snapshots --tag kind:db
+restic -r s3:s3.amazonaws.com/bitrix-backups/example-com snapshots --tag kind:files
+```

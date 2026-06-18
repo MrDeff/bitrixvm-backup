@@ -32,7 +32,7 @@ restic_forget_command() {
   local keep_weekly="$3"
   local keep_monthly="$4"
 
-  printf 'forget --tag %s --keep-daily %s --keep-weekly %s --keep-monthly %s --prune\n' \
+  printf 'forget --tag %s --group-by tags --keep-daily %s --keep-weekly %s --keep-monthly %s --prune\n' \
     "$tag" "$keep_daily" "$keep_weekly" "$keep_monthly"
 }
 
@@ -45,6 +45,7 @@ restic_apply_retention() {
 
   restic_base "$repo" forget \
     --tag "$tag" \
+    --group-by tags \
     --keep-daily "$keep_daily" \
     --keep-weekly "$keep_weekly" \
     --keep-monthly "$keep_monthly" \
